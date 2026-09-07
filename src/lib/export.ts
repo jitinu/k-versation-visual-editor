@@ -19,7 +19,10 @@ import type { ImageCandidate, Project } from "@/lib/types";
 import { createId, formatSrtTimestamp, retry } from "@/lib/utils";
 
 const maxImageBytes = 25 * 1024 * 1024;
-const trustedImageHosts = new Set(["upload.wikimedia.org"]);
+const trustedImageHosts = new Set([
+  "thumb.wikimedia.org",
+  "upload.wikimedia.org",
+]);
 
 function runFfmpeg(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {

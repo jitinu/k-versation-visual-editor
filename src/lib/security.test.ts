@@ -69,10 +69,13 @@ describe("asset access", () => {
 });
 
 describe("remote image URLs", () => {
-  it("accepts only HTTPS Wikimedia upload URLs", () => {
+  it("accepts only HTTPS Wikimedia image URLs", () => {
     expect(
       trustedImageUrl("https://upload.wikimedia.org/example.jpg").hostname,
     ).toBe("upload.wikimedia.org");
+    expect(
+      trustedImageUrl("https://thumb.wikimedia.org/example.jpg").hostname,
+    ).toBe("thumb.wikimedia.org");
     expect(() =>
       trustedImageUrl("http://upload.wikimedia.org/example.jpg"),
     ).toThrow();
