@@ -51,6 +51,26 @@ The defaults use:
 
 All provider names and paths can be changed in `.env.local`.
 
+## Easiest Mac setup
+
+1. Keep the downloaded `k-versation-visual-editor` folder somewhere permanent, such as **Documents**.
+2. Double-click `Start-K-VERSATION.command`.
+3. If macOS blocks the first launch, Control-click the file, choose **Open**, then confirm **Open**.
+4. Keep the Terminal window open while using K-VERSATION. The launcher opens the local website automatically.
+5. Press **Control-C** in that Terminal window when you are finished.
+
+On first launch, the script checks Node.js and FFmpeg, installs missing requirements through an existing Homebrew installation, creates local settings, and installs the app dependencies. If Homebrew is missing, its official setup page opens with instructions; after installing it, double-click the launcher again.
+
+Future use only requires double-clicking `Start-K-VERSATION.command`. Your projects remain in the app folder under `data`.
+
+To enable automatic transcription, open `.env.local` in a text editor and set:
+
+```dotenv
+OPENAI_API_KEY=your_key_here
+```
+
+Without a key, paste the narration script when creating a project.
+
 ## Run locally
 
 ```bash
