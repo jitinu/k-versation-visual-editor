@@ -25,6 +25,7 @@ button { color: inherit; }
 .brand-mark { width: 35px; height: 35px; display: grid; place-items: center; color: var(--dark); background: var(--lime); border-radius: 50%; }
 .new-project-button { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 7px 16px 22px; padding: 12px 15px; border: 1px solid #4d4a55; border-radius: 8px; background: #242229; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; transition: .2s ease; }
 .new-project-button:hover { border-color: var(--lime); color: var(--lime); }
+.mobile-project-picker { display: none; }
 .sidebar-section { min-height: 0; flex: 1; overflow: hidden; }
 .sidebar-label { display: flex; justify-content: space-between; padding: 0 21px 10px; color: #89858f; font-size: 10px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
 .project-list { max-height: calc(100vh - 220px); overflow: auto; padding: 0 10px; }
@@ -215,6 +216,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--violet); box-sha
   .sidebar { position: static; width: 100%; height: auto; display: grid; grid-template-columns: 1fr auto; }
   .brand { height: 65px; }
   .new-project-button { align-self: center; margin: 0 14px 0 0; }
+  .mobile-project-picker { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; padding: 0 14px 14px; color: #8f8a95; font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+  .mobile-project-picker select { height: 38px; border-color: #46434d; background: #29272f; color: white; }
   .sidebar-section, .sidebar-footer { display: none; }
   .workspace { width: 100%; }
   .topbar { padding: 14px 20px; }

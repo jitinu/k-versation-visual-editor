@@ -359,6 +359,29 @@ export function KVersationApp() {
         <button className="new-project-button" type="button" onClick={() => { setProject(undefined); setMedia(undefined); setShowNewProject(true); setError(""); }}>
           <Icon name="plus" size={17} /> New project
         </button>
+        <label className="mobile-project-picker">
+          <span>Choose a saved project</span>
+          <select
+            value={showNewProject ? "new" : project?.id ?? "new"}
+            onChange={(event) => {
+              if (event.target.value === "new") {
+                setProject(undefined);
+                setMedia(undefined);
+                setShowNewProject(true);
+                setError("");
+              } else {
+                void openProject(event.target.value);
+              }
+            }}
+          >
+            <option value="new">New project</option>
+            {projects.map((entry) => (
+              <option value={entry.id} key={entry.id}>
+                {entry.title}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="sidebar-section">
           <div className="sidebar-label"><span>Recent projects</span><span>{projects.length}</span></div>
           <div className="project-list">
@@ -473,7 +496,7 @@ function NewProjectForm({ media, dragging, mediaInput, onSubmit, onMedia, onDrag
           onDrop={(event) => { event.preventDefault(); onDragging(false); onMedia(event.dataTransfer.files?.[0]); }}
         >
           <span className="upload-icon"><Icon name={media ? "wave" : "upload"} size={25} /></span>
-          {media ? <><strong>{media.name}</strong><span>{(media.size / 1024 / 1024).toFixed(1)} MB · Click to replace</span></> : <><strong>Drop your recording here</strong><span>or click to browse · MP3, WAV, M4A, MP4, MOV</span></>}
+          {media ? <><strong>{media.name}</strong><span>{(media.size / 1024 / 1024).toFixed(1)} MB · Click to replace</span></> : <><strong>Choose or drop your recording</strong><span>MP3, WAV, M4A, MP4, or MOV</span></>}
         </button>
 
         <div className="two-column-fields">
@@ -587,8 +610,8 @@ function ProjectWorkspace({
                       <p>{moment.whyVisualIsHelpful}</p>
                       {chosen && <div className="source-line"><span>{chosen.title}</span><a href={chosen.sourceUrl || undefined} target="_blank" rel="noreferrer">{chosen.sourceName}{chosen.license ? ` · ${chosen.license}` : ""}</a></div>}
                       <div className="moment-actions">
-                        <button type="button" onClick={() => onAlternatives(alternativesFor === moment.id ? undefined : moment.id)}><Icon name="image" size={15} /> {alternativesFor === moment.id ? "Hide alternatives" : `See alternatives (${Math.max(0, moment.candidates.length - 1)})`}</button>
-                        <label className="action-upload"><Icon name="upload" size={15} /> Upload image<input type="file" accept=".jpg,.jpeg,.png,.webp" onChange={(event) => onUploadReplacement(moment.id, event.target.files?.[0])} /></label>
+                        <button type="button" onClick={() => onAlternatives(alternativesFor === moment.id ? undefined : moment.id)}><Icon name="image" size={15} /> {alternativesFor === moment.id ? "Close image picker" : `Choose image (${moment.candidates.length})`}</button>
+                        <label className="action-upload"><Icon name="upload" size={15} /> Use my image<input type="file" accept=".jpg,.jpeg,.png,.webp" onChange={(event) => onUploadReplacement(moment.id, event.target.files?.[0])} /></label>
                         <button type="button" onClick={() => onPatchMoment(moment.id, { removed: !moment.removed })}><Icon name={moment.removed ? "plus" : "trash"} size={15} /> {moment.removed ? "Restore" : "Remove"}</button>
                       </div>
                       {alternativesFor === moment.id && (
