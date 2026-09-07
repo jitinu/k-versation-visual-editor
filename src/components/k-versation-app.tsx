@@ -496,7 +496,7 @@ function NewProjectForm({ media, dragging, mediaInput, onSubmit, onMedia, onDrag
           onDrop={(event) => { event.preventDefault(); onDragging(false); onMedia(event.dataTransfer.files?.[0]); }}
         >
           <span className="upload-icon"><Icon name={media ? "wave" : "upload"} size={25} /></span>
-          {media ? <><strong>{media.name}</strong><span>{(media.size / 1024 / 1024).toFixed(1)} MB · Click to replace</span></> : <><strong>Choose or drop your recording</strong><span>MP3, WAV, M4A, MP4, or MOV</span></>}
+          {media ? <><strong>{media.name}</strong><span>{(media.size / 1024 / 1024).toFixed(1)} MB · Click to replace</span></> : <><strong>Choose audio from your computer</strong><span>Browse Desktop, Downloads, Recents, or any folder</span><small>MP3, WAV, M4A, MP4, or MOV</small></>}
         </button>
 
         <div className="two-column-fields">
