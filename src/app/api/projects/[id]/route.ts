@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getProject, saveProject } from "@/lib/storage";
+import { getProject, updateProject } from "@/lib/storage";
 import type { VisualFrequency } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -20,14 +20,13 @@ export async function GET(_request: Request, context: Context) {
 export async function PATCH(request: Request, context: Context) {
   try {
     const { id } = await context.params;
-    const project = await getProject(id);
     const body = (await request.json()) as {
       title?: string;
       visualFrequency?: VisualFrequency;
     };
     const visualFrequency = body.visualFrequency;
     return NextResponse.json(
-      await saveProject({
+      await updateProject(id, (project) => ({
         ...project,
         title: body.title?.trim() || project.title,
         visualFrequency:
@@ -35,7 +34,7 @@ export async function PATCH(request: Request, context: Context) {
           ["minimal", "balanced", "frequent"].includes(visualFrequency)
             ? visualFrequency
             : project.visualFrequency,
-      }),
+      })),
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Project update failed";

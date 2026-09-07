@@ -1,16 +1,116 @@
 import { analyzeTranscript } from "@/lib/analysis";
 import { findImagesForMoment } from "@/lib/images";
 import { createTranscript, getMediaDuration } from "@/lib/media";
-import { getProject, resolveDataPath, saveProject } from "@/lib/storage";
-import type { Project, VisualMoment } from "@/lib/types";
+import { getProject, resolveDataPath, updateProject } from "@/lib/storage";
+import type {
+  CandidateVisualMoment,
+  Project,
+  VisualMoment,
+} from "@/lib/types";
 import { clamp, createId } from "@/lib/utils";
 
 async function setStatus(
-  project: Project,
+  projectId: string,
   status: Project["status"],
   statusMessage: string,
 ): Promise<Project> {
-  return saveProject({ ...project, status, statusMessage, error: undefined });
+  return updateProject(projectId, (project) => ({
+    ...project,
+    status,
+    statusMessage,
+    error: undefined,
+  }));
+}
+
+function candidateFromVisual(visual: VisualMoment): CandidateVisualMoment {
+  return {
+    start_time: visual.startTime,
+    end_time: visual.endTime,
+    transcript_excerpt: visual.transcriptExcerpt,
+    visual_priority_score: visual.visualPriorityScore,
+    why_visual_is_helpful: visual.whyVisualIsHelpful,
+    search_query_1: visual.searchQueries[0],
+    search_query_2: visual.searchQueries[1],
+    search_query_3: visual.searchQueries[2],
+    suggested_visual_type: visual.suggestedVisualType,
+  };
+}
+
+export function mergeLowConfidenceVisuals(
+  visuals: VisualMoment[],
+  replacements: ReadonlyMap<
+    string,
+    { images: VisualMoment["candidates"]; confidence: number }
+  >,
+): VisualMoment[] {
+  return visuals.map((visual) => {
+    if (visual.confidence >= 0.62 && visual.candidates.length > 0) {
+      return visual;
+    }
+    const replacement = replacements.get(visual.id);
+    return replacement
+      ? {
+          ...visual,
+          candidates: replacement.images,
+          chosenImageId: replacement.images[0].id,
+          confidence: replacement.confidence,
+        }
+      : visual;
+  });
+}
+
+async function regenerateLowConfidenceVisuals(
+  project: Project,
+): Promise<Project> {
+  const targets = project.visuals.filter(
+    (visual) => visual.confidence < 0.62 || visual.candidates.length === 0,
+  );
+  if (targets.length === 0) {
+    return updateProject(project.id, (current) => ({
+      ...current,
+      status: "generated",
+      statusMessage: "No low-confidence visuals need regeneration",
+      error: undefined,
+    }));
+  }
+
+  await setStatus(
+    project.id,
+    "searching",
+    "Refreshing only low-confidence image choices",
+  );
+  const replacements = new Map<
+    string,
+    { images: VisualMoment["candidates"]; confidence: number }
+  >();
+  for (const visual of targets) {
+    const images = await findImagesForMoment(candidateFromVisual(visual));
+    if (images.length > 0) {
+      replacements.set(visual.id, {
+        images,
+        confidence: clamp(
+          (visual.visualPriorityScore / 100) * 0.65 + 0.3,
+          0,
+          0.96,
+        ),
+      });
+    }
+  }
+
+  await setStatus(
+    project.id,
+    "selecting",
+    "Ranking refreshed image choices",
+  );
+  return updateProject(project.id, (current) => ({
+    ...current,
+    status: "generated",
+    statusMessage: "Low-confidence visuals regenerated",
+    error: undefined,
+    outputVideoPath:
+      replacements.size > 0 ? undefined : current.outputVideoPath,
+    visuals: mergeLowConfidenceVisuals(current.visuals, replacements),
+  }));
 }
 
 export async function generateProject(
@@ -21,7 +121,7 @@ export async function generateProject(
   try {
     if (!lowConfidenceOnly || project.transcript.length === 0) {
       project = await setStatus(
-        project,
+        project.id,
         "transcribing",
         "Creating a timestamped transcript",
       );
@@ -32,16 +132,20 @@ export async function generateProject(
         duration,
         project.script,
       );
-      project = await saveProject({
-        ...project,
+      project = await updateProject(project.id, (current) => ({
+        ...current,
         duration,
         transcript: transcription.segments,
         transcriptSource: transcription.source,
-      });
+      }));
+    }
+
+    if (lowConfidenceOnly && project.visuals.length > 0) {
+      return regenerateLowConfidenceVisuals(project);
     }
 
     project = await setStatus(
-      project,
+      project.id,
       "analyzing",
       "Finding only the moments that deserve a visual",
     );
@@ -52,7 +156,7 @@ export async function generateProject(
     );
 
     project = await setStatus(
-      project,
+      project.id,
       "searching",
       "Searching authoritative image sources",
     );
@@ -62,15 +166,6 @@ export async function generateProject(
     const visuals: VisualMoment[] = [];
     for (const candidate of candidates) {
       const existing = existingByExcerpt.get(candidate.transcript_excerpt);
-      if (
-        lowConfidenceOnly &&
-        existing &&
-        existing.confidence >= 0.62 &&
-        existing.candidates.length > 0
-      ) {
-        visuals.push(existing);
-        continue;
-      }
       const images = await findImagesForMoment(candidate);
       const confidence = images.length
         ? clamp((candidate.visual_priority_score / 100) * 0.65 + 0.3, 0, 0.96)
@@ -103,24 +198,24 @@ export async function generateProject(
     }
 
     project = await setStatus(
-      { ...project, visuals },
+      project.id,
       "selecting",
       "Ranking the clearest, most specific images",
     );
-    return saveProject({
-      ...project,
+    return updateProject(project.id, (current) => ({
+      ...current,
       status: "generated",
       statusMessage: "Visual timeline ready for review",
       visuals,
       outputVideoPath: undefined,
-    });
+    }));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Generation failed";
-    return saveProject({
-      ...project,
+    return updateProject(project.id, (current) => ({
+      ...current,
       status: "error",
       statusMessage: message,
       error: message,
-    });
+    }));
   }
 }

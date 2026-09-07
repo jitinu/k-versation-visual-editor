@@ -42,6 +42,36 @@ export function safeFileName(fileName: string): string {
   return `${safeStem || "media"}${extension.toLowerCase()}`;
 }
 
+export function normalizeVisualInterval(
+  currentStart: number,
+  currentEnd: number,
+  requestedStart: number | undefined,
+  requestedEnd: number | undefined,
+  duration: number,
+): { startTime: number; endTime: number } {
+  const boundedDuration = Math.max(0, duration);
+  if (boundedDuration <= 0.5) {
+    return { startTime: 0, endTime: boundedDuration };
+  }
+
+  let startTime = clamp(
+    requestedStart ?? currentStart,
+    0,
+    boundedDuration,
+  );
+  let endTime = clamp(requestedEnd ?? currentEnd, 0, boundedDuration);
+  if (endTime - startTime < 0.5) {
+    if (requestedStart !== undefined && requestedEnd === undefined) {
+      startTime = Math.min(startTime, boundedDuration - 0.5);
+      endTime = Math.max(endTime, startTime + 0.5);
+    } else {
+      endTime = Math.min(boundedDuration, Math.max(endTime, startTime + 0.5));
+      startTime = Math.max(0, Math.min(startTime, endTime - 0.5));
+    }
+  }
+  return { startTime, endTime };
+}
+
 export async function retry<T>(
   operation: () => Promise<T>,
   attempts = 3,

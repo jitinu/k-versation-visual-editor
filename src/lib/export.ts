@@ -1,16 +1,25 @@
 import { spawn } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { config } from "@/lib/config";
 import {
   projectCacheDir,
   projectRenderDir,
   resolveDataPath,
-  saveProject,
   toDataRelativePath,
+  updateProject,
 } from "@/lib/storage";
 import type { ImageCandidate, Project } from "@/lib/types";
-import { formatSrtTimestamp, retry } from "@/lib/utils";
+import { createId, formatSrtTimestamp, retry } from "@/lib/utils";
+
+const maxImageBytes = 25 * 1024 * 1024;
+const trustedImageHosts = new Set(["upload.wikimedia.org"]);
 
 function runFfmpeg(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -37,6 +46,65 @@ function chosenImage(project: Project, imageId?: string): ImageCandidate | undef
     .find((image) => image.id === imageId);
 }
 
+export function trustedImageUrl(value: string, base?: URL): URL {
+  const url = base ? new URL(value, base) : new URL(value);
+  if (url.protocol !== "https:" || !trustedImageHosts.has(url.hostname)) {
+    throw new Error("Selected image URL is not from an approved provider");
+  }
+  return url;
+}
+
+async function fetchTrustedImage(value: string): Promise<Response> {
+  let url = trustedImageUrl(value);
+  for (let redirect = 0; redirect <= 3; redirect += 1) {
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "K-VERSATION/1.0 (personal visual editor)",
+        Accept: "image/*",
+      },
+      redirect: "manual",
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (response.status < 300 || response.status >= 400) {
+      return response;
+    }
+    const location = response.headers.get("location");
+    if (!location) {
+      throw new Error("Image provider returned an invalid redirect");
+    }
+    url = trustedImageUrl(location, url);
+  }
+  throw new Error("Image provider returned too many redirects");
+}
+
+async function readLimitedImage(response: Response): Promise<Buffer> {
+  const contentLength = Number(response.headers.get("content-length") ?? 0);
+  if (contentLength > maxImageBytes) {
+    throw new Error("Selected image is too large");
+  }
+  if (!response.body) {
+    throw new Error("Selected image returned no content");
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxImageBytes) {
+        await reader.cancel();
+        throw new Error("Selected image is too large");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks, total);
+}
+
 async function cacheImage(
   projectId: string,
   candidate: ImageCandidate,
@@ -45,29 +113,22 @@ async function cacheImage(
   if (candidate.localPath) {
     return resolveDataPath(candidate.localPath);
   }
-  const url = new URL(candidate.imageUrl);
-  if (!["http:", "https:"].includes(url.protocol)) {
-    throw new Error("Unsupported image URL");
-  }
   const directory = projectCacheDir(projectId);
   await mkdir(directory, { recursive: true });
   const destination = path.join(directory, `visual-${index}.jpg`);
-  const urls = [candidate.thumbnailUrl, candidate.imageUrl].filter(
-    (url, urlIndex, candidates) =>
-      Boolean(url) && candidates.indexOf(url) === urlIndex,
-  );
+  const urls = [candidate.thumbnailUrl, candidate.imageUrl]
+    .filter(
+      (url, urlIndex, candidates) =>
+        Boolean(url) && candidates.indexOf(url) === urlIndex,
+    )
+    .map((url) => trustedImageUrl(url).toString());
   let response: Response | undefined;
   let lastError: unknown;
   for (const imageUrl of urls) {
     try {
       response = await retry(
         async () => {
-          const result = await fetch(imageUrl, {
-            headers: {
-              "User-Agent": "K-VERSATION/1.0 (personal visual editor)",
-              Accept: "image/*",
-            },
-          });
+          const result = await fetchTrustedImage(imageUrl);
           if (!result.ok) {
             throw new Error(
               `Could not download selected image (${result.status})`,
@@ -86,14 +147,7 @@ async function cacheImage(
   if (!response) {
     throw lastError ?? new Error("Could not download selected image");
   }
-  const contentLength = Number(response.headers.get("content-length") ?? 0);
-  if (contentLength > 25 * 1024 * 1024) {
-    throw new Error("Selected image is too large");
-  }
-  const bytes = Buffer.from(await response.arrayBuffer());
-  if (bytes.length > 25 * 1024 * 1024) {
-    throw new Error("Selected image is too large");
-  }
+  const bytes = await readLimitedImage(response);
   await writeFile(destination, bytes);
   return destination;
 }
@@ -144,18 +198,21 @@ export function timelineJson(project: Project): string {
   )}\n`;
 }
 
-export async function renderProjectVideo(project: Project): Promise<Project> {
-  let current = await saveProject({
+export async function renderProjectVideo(projectId: string): Promise<Project> {
+  let current = await updateProject(projectId, (project) => ({
     ...project,
+    outputVideoPath: undefined,
     status: "rendering",
     statusMessage: "Rendering 1080p video with FFmpeg",
     error: undefined,
-  });
+  }));
+  let temporaryOutput: string | undefined;
   try {
-    const renderDir = projectRenderDir(project.id);
+    const renderDir = projectRenderDir(projectId);
     await mkdir(renderDir, { recursive: true });
     const output = path.join(renderDir, "k-versation-export.mp4");
-    const active = project.visuals
+    temporaryOutput = path.join(renderDir, `${createId("render")}.mp4`);
+    const active = current.visuals
       .filter((visual) => !visual.removed && visual.chosenImageId)
       .sort((a, b) => a.startTime - b.startTime);
     const images: Array<{
@@ -164,10 +221,10 @@ export async function renderProjectVideo(project: Project): Promise<Project> {
       duration: number;
     }> = [];
     for (const [index, visual] of active.entries()) {
-      const candidate = chosenImage(project, visual.chosenImageId);
+      const candidate = chosenImage(current, visual.chosenImageId);
       if (!candidate) continue;
       images.push({
-        path: await cacheImage(project.id, candidate, index),
+        path: await cacheImage(projectId, candidate, index),
         start: visual.startTime,
         duration: Math.max(0.5, visual.endTime - visual.startTime),
       });
@@ -178,9 +235,9 @@ export async function renderProjectVideo(project: Project): Promise<Project> {
       "-f",
       "lavfi",
       "-i",
-      `color=c=0x101014:s=1920x1080:r=30:d=${project.duration.toFixed(3)}`,
+      `color=c=0x101014:s=1920x1080:r=30:d=${current.duration.toFixed(3)}`,
       "-i",
-      resolveDataPath(project.mediaPath),
+      resolveDataPath(current.mediaPath),
     ];
     for (const image of images) {
       args.push("-loop", "1", "-t", image.duration.toFixed(3), "-i", image.path);
@@ -206,7 +263,7 @@ export async function renderProjectVideo(project: Project): Promise<Project> {
       "-map",
       "1:a:0",
       "-t",
-      project.duration.toFixed(3),
+      current.duration.toFixed(3),
       "-c:v",
       "libx264",
       "-preset",
@@ -221,30 +278,44 @@ export async function renderProjectVideo(project: Project): Promise<Project> {
       "192k",
       "-movflags",
       "+faststart",
-      output,
+      temporaryOutput,
     );
     await runFfmpeg(args);
+    await rename(temporaryOutput, output);
+    temporaryOutput = undefined;
 
     await Promise.all([
-      writeFile(path.join(renderDir, "transcript.txt"), transcriptText(project)),
-      writeFile(path.join(renderDir, "subtitles.srt"), srtText(project)),
-      writeFile(path.join(renderDir, "timeline.json"), timelineJson(project)),
+      writeFile(path.join(renderDir, "transcript.txt"), transcriptText(current)),
+      writeFile(path.join(renderDir, "subtitles.srt"), srtText(current)),
+      writeFile(path.join(renderDir, "timeline.json"), timelineJson(current)),
     ]);
-    current = await saveProject({
-      ...current,
-      outputVideoPath: toDataRelativePath(output),
-      status: "complete",
-      statusMessage: "Export complete",
-    });
+    current = await updateProject(projectId, (latest) =>
+      latest.status === "rendering"
+        ? {
+            ...latest,
+            outputVideoPath: toDataRelativePath(output),
+            status: "complete",
+            statusMessage: "Export complete",
+          }
+        : latest,
+    );
     return current;
   } catch (error) {
+    if (temporaryOutput) {
+      await rm(temporaryOutput, { force: true }).catch(() => undefined);
+    }
     const message = error instanceof Error ? error.message : "Rendering failed";
-    return saveProject({
-      ...current,
-      status: "error",
-      statusMessage: message,
-      error: message,
-    });
+    return updateProject(projectId, (latest) =>
+      latest.status === "rendering"
+        ? {
+            ...latest,
+            outputVideoPath: undefined,
+            status: "error",
+            statusMessage: message,
+            error: message,
+          }
+        : latest,
+    );
   }
 }
 

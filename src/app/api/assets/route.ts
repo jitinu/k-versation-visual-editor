@@ -1,7 +1,11 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { resolveDataPath } from "@/lib/storage";
+import {
+  getProject,
+  projectOwnsAsset,
+  resolveDataPath,
+} from "@/lib/storage";
 
 export const runtime = "nodejs";
 
@@ -23,14 +27,29 @@ export async function GET(request: Request) {
     if (!relativePath) {
       return NextResponse.json({ error: "Missing asset path" }, { status: 400 });
     }
-    const absolutePath = resolveDataPath(relativePath);
+    const normalizedPath = path.posix.normalize(
+      relativePath.replaceAll("\\", "/"),
+    );
+    const [directory, projectId] = normalizedPath.split("/");
+    if (directory !== "uploads" || !projectId) {
+      throw new Error("Asset path is not publicly readable");
+    }
+    const project = await getProject(projectId);
+    if (!projectOwnsAsset(project, normalizedPath)) {
+      throw new Error("Asset is not referenced by this project");
+    }
+    const extension = path.extname(normalizedPath).toLowerCase();
+    const contentType = contentTypes[extension];
+    if (!contentType) {
+      throw new Error("Unsupported asset type");
+    }
+    const absolutePath = resolveDataPath(normalizedPath);
     const data = await readFile(absolutePath);
     return new NextResponse(data, {
       headers: {
-        "Content-Type":
-          contentTypes[path.extname(absolutePath).toLowerCase()] ??
-          "application/octet-stream",
+        "Content-Type": contentType,
         "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
       },
     });
   } catch {

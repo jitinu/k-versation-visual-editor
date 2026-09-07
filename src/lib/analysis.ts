@@ -73,6 +73,7 @@ async function analyzeWithOpenAi(
         },
       ],
     }),
+    signal: AbortSignal.timeout(60_000),
   });
   if (!response.ok) {
     throw new Error(`Transcript analysis failed (${response.status})`);
@@ -107,7 +108,7 @@ function keyPhrase(text: string): string {
   return usefulWords.join(" ");
 }
 
-function heuristicAnalysis(
+export function heuristicAnalysis(
   transcript: TranscriptSegment[],
   target: number,
 ): CandidateVisualMoment[] {
@@ -122,15 +123,19 @@ function heuristicAnalysis(
     return { segment, score: clamp(score, 0, 100) };
   });
 
-  const selected = scored
-    .sort((a, b) => b.score - a.score)
-    .filter(({ segment }, index, all) =>
-      all
-        .slice(0, index)
-        .every(({ segment: prior }) => Math.abs(prior.start - segment.start) > 12),
-    )
-    .slice(0, target)
-    .sort((a, b) => a.segment.start - b.segment.start);
+  const selected: typeof scored = [];
+  for (const candidate of scored.sort((a, b) => b.score - a.score)) {
+    if (
+      selected.every(
+        ({ segment }) =>
+          Math.abs(segment.start - candidate.segment.start) > 12,
+      )
+    ) {
+      selected.push(candidate);
+      if (selected.length === target) break;
+    }
+  }
+  selected.sort((a, b) => a.segment.start - b.segment.start);
 
   return selected.map(({ segment, score }) => {
     const phrase = keyPhrase(segment.text) || "historical reference";

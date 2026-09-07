@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { findImagesForMoment } from "@/lib/images";
-import { getProject, saveProject } from "@/lib/storage";
+import { getProject, updateProject } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -34,12 +34,12 @@ export async function POST(request: Request, context: Context) {
       return NextResponse.json({ error: "No strong alternatives were found" }, { status: 404 });
     }
     return NextResponse.json(
-      await saveProject({
-        ...project,
+      await updateProject(id, (current) => ({
+        ...current,
         outputVideoPath: undefined,
         status: "generated",
         statusMessage: "Segment alternatives regenerated",
-        visuals: project.visuals.map((entry) =>
+        visuals: current.visuals.map((entry) =>
           entry.id === momentId
             ? {
                 ...entry,
@@ -49,7 +49,7 @@ export async function POST(request: Request, context: Context) {
               }
             : entry,
         ),
-      }),
+      })),
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Image search failed";

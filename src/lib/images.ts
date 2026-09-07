@@ -55,6 +55,7 @@ async function searchCommons(
         "User-Agent": "K-VERSATION/1.0 (personal visual editor)",
         Accept: "application/json",
       },
+      signal: AbortSignal.timeout(20_000),
     },
   );
   if (!response.ok) {

@@ -1,16 +1,23 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
 import {
   getProject,
   projectUploadDir,
-  saveProject,
   toDataRelativePath,
+  updateProject,
 } from "@/lib/storage";
 import type { ImageCandidate } from "@/lib/types";
-import { clamp, createId, safeFileName } from "@/lib/utils";
+import {
+  createId,
+  normalizeVisualInterval,
+  safeFileName,
+} from "@/lib/utils";
 
 export const runtime = "nodejs";
+
+const maxReplacementImageBytes = 25 * 1024 * 1024;
+const multipartOverheadBytes = 1024 * 1024;
 
 interface Context {
   params: Promise<{ id: string; momentId: string }>;
@@ -19,62 +26,82 @@ interface Context {
 export async function PATCH(request: Request, context: Context) {
   try {
     const { id, momentId } = await context.params;
-    const project = await getProject(id);
     const body = (await request.json()) as {
       chosenImageId?: string;
       removed?: boolean;
       startTime?: number;
       endTime?: number;
     };
-    const visual = project.visuals.find((entry) => entry.id === momentId);
-    if (!visual) {
-      return NextResponse.json({ error: "Visual moment not found" }, { status: 404 });
-    }
-    if (
-      body.chosenImageId &&
-      !visual.candidates.some((candidate) => candidate.id === body.chosenImageId)
-    ) {
-      return NextResponse.json({ error: "Image is not an alternative for this moment" }, { status: 400 });
-    }
-    const startTime =
-      typeof body.startTime === "number"
-        ? clamp(body.startTime, 0, project.duration)
-        : visual.startTime;
-    const endTime =
-      typeof body.endTime === "number"
-        ? clamp(body.endTime, startTime + 0.5, project.duration)
-        : Math.max(visual.endTime, startTime + 0.5);
-    const updated = await saveProject({
-      ...project,
-      outputVideoPath: undefined,
-      status: "generated",
-      statusMessage: "Timeline updated; export again when ready",
-      visuals: project.visuals.map((entry) =>
-        entry.id === momentId
-          ? {
-              ...entry,
-              chosenImageId: body.chosenImageId ?? entry.chosenImageId,
-              removed: body.removed ?? entry.removed,
-              startTime,
-              endTime,
-            }
-          : entry,
-      ),
+    const updated = await updateProject(id, (current) => {
+      const currentVisual = current.visuals.find(
+        (entry) => entry.id === momentId,
+      );
+      if (!currentVisual) {
+        throw new Error("Visual moment not found");
+      }
+      if (
+        body.chosenImageId &&
+        !currentVisual.candidates.some(
+          (candidate) => candidate.id === body.chosenImageId,
+        )
+      ) {
+        throw new Error("Image is not an alternative for this moment");
+      }
+      const { startTime, endTime } = normalizeVisualInterval(
+        currentVisual.startTime,
+        currentVisual.endTime,
+        typeof body.startTime === "number" ? body.startTime : undefined,
+        typeof body.endTime === "number" ? body.endTime : undefined,
+        current.duration,
+      );
+      return {
+        ...current,
+        outputVideoPath: undefined,
+        status: "generated",
+        statusMessage: "Timeline updated; export again when ready",
+        visuals: current.visuals.map((entry) =>
+          entry.id === momentId
+            ? {
+                ...entry,
+                chosenImageId: body.chosenImageId ?? entry.chosenImageId,
+                removed: body.removed ?? entry.removed,
+                startTime,
+                endTime,
+              }
+            : entry,
+        ),
+      };
     });
     return NextResponse.json(updated);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Timeline update failed";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return NextResponse.json(
+      { error: message },
+      { status: message === "Visual moment not found" ? 404 : 400 },
+    );
   }
 }
 
 export async function POST(request: Request, context: Context) {
+  let destination: string | undefined;
   try {
     const { id, momentId } = await context.params;
     const project = await getProject(id);
     const visual = project.visuals.find((entry) => entry.id === momentId);
     if (!visual) {
       return NextResponse.json({ error: "Visual moment not found" }, { status: 404 });
+    }
+    const contentLength = Number(request.headers.get("content-length"));
+    if (
+      !Number.isFinite(contentLength) ||
+      contentLength <= 0 ||
+      contentLength >
+        maxReplacementImageBytes + multipartOverheadBytes
+    ) {
+      return NextResponse.json(
+        { error: "Replacement image request is too large or unbounded" },
+        { status: 413 },
+      );
     }
     const form = await request.formData();
     const image = form.get("image");
@@ -85,12 +112,15 @@ export async function POST(request: Request, context: Context) {
     if (![".jpg", ".jpeg", ".png", ".webp"].includes(extension)) {
       return NextResponse.json({ error: "Supported images: jpg, png, webp" }, { status: 400 });
     }
-    if (image.size > 25 * 1024 * 1024) {
+    if (image.size > maxReplacementImageBytes) {
       return NextResponse.json({ error: "Replacement images must be under 25 MB" }, { status: 413 });
     }
     const directory = path.join(projectUploadDir(id), "replacements");
     await mkdir(directory, { recursive: true });
-    const destination = path.join(directory, `${createId("replacement")}-${safeFileName(image.name)}`);
+    destination = path.join(
+      directory,
+      `${createId("replacement")}-${safeFileName(image.name)}`,
+    );
     await writeFile(destination, Buffer.from(await image.arrayBuffer()));
     const localPath = toDataRelativePath(destination);
     const candidate: ImageCandidate = {
@@ -106,24 +136,32 @@ export async function POST(request: Request, context: Context) {
       localPath,
     };
     return NextResponse.json(
-      await saveProject({
-        ...project,
-        outputVideoPath: undefined,
-        status: "generated",
-        statusMessage: "Replacement image selected",
-        visuals: project.visuals.map((entry) =>
-          entry.id === momentId
-            ? {
-                ...entry,
-                candidates: [candidate, ...entry.candidates],
-                chosenImageId: candidate.id,
-                removed: false,
-              }
-            : entry,
-        ),
+      await updateProject(id, (current) => {
+        if (!current.visuals.some((entry) => entry.id === momentId)) {
+          throw new Error("Visual moment not found");
+        }
+        return {
+          ...current,
+          outputVideoPath: undefined,
+          status: "generated",
+          statusMessage: "Replacement image selected",
+          visuals: current.visuals.map((entry) =>
+            entry.id === momentId
+              ? {
+                  ...entry,
+                  candidates: [candidate, ...entry.candidates],
+                  chosenImageId: candidate.id,
+                  removed: false,
+                }
+              : entry,
+          ),
+        };
       }),
     );
   } catch (error) {
+    if (destination) {
+      await rm(destination, { force: true }).catch(() => undefined);
+    }
     const message = error instanceof Error ? error.message : "Image upload failed";
     return NextResponse.json({ error: message }, { status: 400 });
   }

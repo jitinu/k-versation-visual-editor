@@ -91,22 +91,12 @@ function distributeText(text: string, duration: number): TranscriptSegment[] {
   });
 }
 
-function interpolateTime(
-  transcript: TranscriptSegment[],
+export function interpolateTime(
+  _transcript: TranscriptSegment[],
   fraction: number,
   duration: number,
 ): number {
-  if (transcript.length === 0) {
-    return fraction * duration;
-  }
-  const target = fraction * duration;
-  const segment =
-    transcript.find((entry) => target >= entry.start && target <= entry.end) ??
-    transcript.at(-1);
-  if (!segment) {
-    return target;
-  }
-  return clamp(target, segment.start, segment.end);
+  return clamp(fraction * duration, 0, duration);
 }
 
 function alignScript(
@@ -154,6 +144,7 @@ async function transcribeWithOpenAi(mediaPath: string): Promise<WhisperResponse>
     method: "POST",
     headers: { Authorization: `Bearer ${config.openAiApiKey}` },
     body: form,
+    signal: AbortSignal.timeout(180_000),
   });
   if (!response.ok) {
     throw new Error(`Transcription failed (${response.status})`);
