@@ -193,6 +193,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--violet); box-sha
 .export-panel p { max-width: 620px; margin: 0; color: #aca7b2; font-size: 11px; line-height: 1.6; }
 .export-actions { display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 8px; }
 .download-video { padding: 10px 16px; border: 1px solid #55515c; color: white; }
+.export-error { grid-column: 1 / -1; display: flex; gap: 8px; padding: 11px 13px; border: 1px solid #6f4141; border-radius: 6px; background: #352326; color: #e9b6b2; font-size: 10px; }
+.export-error strong { color: #ffd8d4; }
 .download-row { grid-column: 1 / -1; display: flex; gap: 10px; padding-top: 18px; border-top: 1px solid #35323b; }
 .download-row a { display: inline-flex; align-items: center; gap: 5px; color: #aaa5af; font-size: 9px; font-weight: 700; text-decoration: none; }
 .center-message { padding: 90px; color: var(--muted); text-align: center; }

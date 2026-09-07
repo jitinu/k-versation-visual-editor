@@ -52,16 +52,39 @@ async function cacheImage(
   const directory = projectCacheDir(projectId);
   await mkdir(directory, { recursive: true });
   const destination = path.join(directory, `visual-${index}.jpg`);
-  const response = await retry(
-    () =>
-      fetch(candidate.imageUrl, {
-        headers: { "User-Agent": "K-VERSATION/1.0 (personal visual editor)" },
-      }),
-    3,
-    500,
+  const urls = [candidate.thumbnailUrl, candidate.imageUrl].filter(
+    (url, urlIndex, candidates) =>
+      Boolean(url) && candidates.indexOf(url) === urlIndex,
   );
-  if (!response.ok) {
-    throw new Error(`Could not download selected image (${response.status})`);
+  let response: Response | undefined;
+  let lastError: unknown;
+  for (const imageUrl of urls) {
+    try {
+      response = await retry(
+        async () => {
+          const result = await fetch(imageUrl, {
+            headers: {
+              "User-Agent": "K-VERSATION/1.0 (personal visual editor)",
+              Accept: "image/*",
+            },
+          });
+          if (!result.ok) {
+            throw new Error(
+              `Could not download selected image (${result.status})`,
+            );
+          }
+          return result;
+        },
+        4,
+        1_000,
+      );
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (!response) {
+    throw lastError ?? new Error("Could not download selected image");
   }
   const contentLength = Number(response.headers.get("content-length") ?? 0);
   if (contentLength > 25 * 1024 * 1024) {

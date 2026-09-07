@@ -320,8 +320,14 @@ export function KVersationApp() {
       setProject(rendered);
       await refreshProjects();
     } catch (renderError) {
-      setError(renderError instanceof Error ? renderError.message : "Rendering failed");
-      await openProject(project.id);
+      const message =
+        renderError instanceof Error ? renderError.message : "Rendering failed";
+      setProject(
+        await requestJson<Project>(`/api/projects/${project.id}`).catch(
+          () => project,
+        ),
+      );
+      setError(message);
     } finally {
       setBusy(false);
     }
@@ -612,6 +618,12 @@ function ProjectWorkspace({
               <button className="primary-button large-button" type="button" onClick={onRender}><Icon name="play" /> {project.outputVideoPath ? "Re-render video" : "Export video"}</button>
               {project.outputVideoPath && <a className="download-video" href={`/api/projects/${project.id}/download/video`}><Icon name="download" /> Download MP4</a>}
             </div>
+            {project.status === "error" && project.error && (
+              <div className="export-error">
+                <strong>Export did not finish.</strong>
+                <span>{project.error}</span>
+              </div>
+            )}
             <div className="download-row">
               <a href={`/api/projects/${project.id}/download/transcript`}><Icon name="download" size={15} /> Transcript</a>
               <a href={`/api/projects/${project.id}/download/srt`}><Icon name="download" size={15} /> SRT captions</a>
