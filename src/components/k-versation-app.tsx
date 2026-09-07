@@ -601,9 +601,9 @@ function ProjectWorkspace({
                     <div className="moment-content">
                       <div className="moment-time">
                         <Icon name="clock" size={15} />
-                        <label><input type="number" step="0.1" min="0" max={project.duration} defaultValue={moment.startTime.toFixed(1)} onBlur={(event) => onPatchMoment(moment.id, { startTime: Number(event.target.value) })} />s</label>
+                        <label><input key={`start-${moment.id}-${moment.startTime}`} type="number" step="0.1" min="0" max={project.duration} defaultValue={moment.startTime.toFixed(1)} onBlur={(event) => onPatchMoment(moment.id, { startTime: Number(event.target.value) })} />s</label>
                         <span>—</span>
-                        <label><input type="number" step="0.1" min="0" max={project.duration} defaultValue={moment.endTime.toFixed(1)} onBlur={(event) => onPatchMoment(moment.id, { endTime: Number(event.target.value) })} />s</label>
+                        <label><input key={`end-${moment.id}-${moment.endTime}`} type="number" step="0.1" min="0" max={project.duration} defaultValue={moment.endTime.toFixed(1)} onBlur={(event) => onPatchMoment(moment.id, { endTime: Number(event.target.value) })} />s</label>
                         <span className="visual-type">{moment.suggestedVisualType}</span>
                       </div>
                       <blockquote>“{moment.transcriptExcerpt}”</blockquote>
