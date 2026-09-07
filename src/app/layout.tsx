@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "K-VERSATION Visual Editor",
+  title: "Visual Story Maker",
   description: "Sparse, intentional visuals for narrated video.",
 };
 

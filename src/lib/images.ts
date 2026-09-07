@@ -52,7 +52,7 @@ async function searchCommons(
     `https://commons.wikimedia.org/w/api.php?${parameters}`,
     {
       headers: {
-        "User-Agent": "K-VERSATION/1.0 (personal visual editor)",
+        "User-Agent": "Visual-Story-Maker/1.0 (personal visual editor)",
         Accept: "application/json",
       },
       signal: AbortSignal.timeout(20_000),

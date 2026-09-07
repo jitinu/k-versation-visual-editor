@@ -2,7 +2,7 @@
 
 set -u
 
-APP_NAME="K-VERSATION"
+APP_NAME="Visual Story Maker"
 APP_URL="http://localhost:3000"
 SCRIPT_DIR="$(cd -- "$(dirname "$0")" && pwd)"
 SERVER_PID=""
@@ -96,7 +96,7 @@ npm install --no-audit --no-fund ||
   fail "Application dependencies could not be installed. Check your internet connection and try again."
 
 if curl --silent --fail "$APP_URL" 2>/dev/null |
-  grep -q "K-VERSATION"; then
+  grep -q "Visual Story Maker"; then
   printf "\n%s is already running. Opening it now...\n" "$APP_NAME"
   open "$APP_URL"
   exit 0
@@ -112,7 +112,7 @@ SERVER_PID=$!
 
 for ((attempt = 1; attempt <= 60; attempt += 1)); do
   if curl --silent --fail "$APP_URL" 2>/dev/null |
-    grep -q "K-VERSATION"; then
+    grep -q "Visual Story Maker"; then
     printf "\n%s is ready. Opening your browser...\n" "$APP_NAME"
     open "$APP_URL"
     printf "Keep this window open while using the app.\n"

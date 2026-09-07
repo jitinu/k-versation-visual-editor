@@ -354,7 +354,7 @@ export function KVersationApp() {
       <aside className="sidebar">
         <button type="button" className="brand" onClick={() => { setProject(undefined); setShowNewProject(true); }}>
           <span className="brand-mark"><Icon name="wave" size={20} /></span>
-          <span>K-VERSATION</span>
+          <span>Visual Story Maker</span>
         </button>
         <button className="new-project-button" type="button" onClick={() => { setProject(undefined); setMedia(undefined); setShowNewProject(true); setError(""); }}>
           <Icon name="plus" size={17} /> New project
@@ -428,7 +428,7 @@ export function KVersationApp() {
           <div className="progress-overlay">
             <div className="progress-card">
               <span className="progress-orbit"><Icon name="sparkles" size={26} /></span>
-              <span className="eyebrow">K-VERSATION is working</span>
+              <span className="eyebrow">Visual Story Maker is working</span>
               <h2>{project?.status === "rendering" ? "Rendering your finished video" : stages[generationStage]}</h2>
               <p>{project?.status === "rendering" ? "Compositing imagery, fades, and original narration at 1080p." : "Sparse visual selection takes a little care. Keep this window open."}</p>
               <div className="progress-track"><span style={{ width: `${project?.status === "rendering" ? 72 : 16 + generationStage * 19}%` }} /></div>
@@ -475,7 +475,7 @@ function NewProjectForm({ media, dragging, mediaInput, onSubmit, onMedia, onDrag
         <div className="hero-copy">
           <span className="eyebrow">Narration to visual story</span>
           <h2>Show less.<br />Say more.</h2>
-          <p>Upload your narration. K-VERSATION finds the few images that make the most important moments land.</p>
+          <p>Upload your narration. Visual Story Maker finds the few images that make the most important moments land.</p>
           <div className="principle-row"><span><b>01</b> Intentional</span><span><b>02</b> Specific</span><span><b>03</b> Editable</span></div>
         </div>
         <div className="hero-art" aria-hidden="true">
@@ -513,7 +513,7 @@ function NewProjectForm({ media, dragging, mediaInput, onSubmit, onMedia, onDrag
         </details>
 
         <button className="primary-button generate-button" type="submit">Generate visual timeline <Icon name="arrow" /></button>
-        <p className="form-footnote">Files stay inside your configured K-VERSATION data directory.</p>
+        <p className="form-footnote">Files stay inside your configured Visual Story Maker data directory.</p>
       </section>
     </form>
   );
@@ -568,7 +568,7 @@ function ProjectWorkspace({
           <div className="empty-visual"><Icon name="sparkles" size={34} /><span /><span /><span /></div>
           <span className="eyebrow">Ready for analysis</span>
           <h2>Find the moments worth seeing.</h2>
-          <p>K-VERSATION will transcribe this recording, identify a sparse set of meaningful visual beats, and search authoritative image sources.</p>
+          <p>Visual Story Maker will transcribe this recording, identify a sparse set of meaningful visual beats, and search authoritative image sources.</p>
           <button className="primary-button large-button" type="button" onClick={() => onGenerate(false)}>Generate visual timeline <Icon name="arrow" /></button>
           <small className="fallback-note">Without an API key, pasted scripts use local alignment and recordings use clearly marked demo transcription.</small>
         </section>

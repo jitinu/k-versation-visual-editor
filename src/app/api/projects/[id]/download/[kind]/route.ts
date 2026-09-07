@@ -19,7 +19,7 @@ export async function GET(_request: Request, context: Context) {
     const project = await getProject(id);
     const safeTitle =
       project.title.replaceAll(/[^a-zA-Z0-9-_]+/g, "-").replaceAll(/^-+|-+$/g, "") ||
-      "k-versation";
+      "visual-story-maker";
     let body: string | Uint8Array<ArrayBuffer>;
     let contentType: string;
     let extension: string;

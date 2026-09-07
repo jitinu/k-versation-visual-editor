@@ -62,7 +62,7 @@ async function fetchTrustedImage(value: string): Promise<Response> {
   for (let redirect = 0; redirect <= 3; redirect += 1) {
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "K-VERSATION/1.0 (personal visual editor)",
+        "User-Agent": "Visual-Story-Maker/1.0 (personal visual editor)",
         Accept: "image/*",
       },
       redirect: "manual",

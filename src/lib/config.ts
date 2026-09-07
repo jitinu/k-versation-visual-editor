@@ -5,7 +5,9 @@ const root = process.cwd();
 export const config = {
   dataDir: path.resolve(
     /* turbopackIgnore: true */
-    process.env.K_VERSATION_DATA_DIR ?? path.join(root, "data"),
+    process.env.VISUAL_STORY_MAKER_DATA_DIR ??
+      process.env.K_VERSATION_DATA_DIR ??
+      path.join(root, "data"),
   ),
   maxUploadBytes: Number(process.env.MAX_UPLOAD_MB ?? 1024) * 1024 * 1024,
   openAiApiKey: process.env.OPENAI_API_KEY,

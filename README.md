@@ -1,6 +1,6 @@
-# K-VERSATION
+# Visual Story Maker
 
-K-VERSATION is a local-first visual editor for narrated stories. Upload a finished narration, optionally provide the script, generate a sparse visual timeline, review the chosen images, and export a 1080p MP4.
+Visual Story Maker is a local-first editor for narrated stories. Upload a finished narration, optionally provide the script, generate a sparse visual timeline, review the chosen images, and export a 1080p MP4.
 
 ## What V1 includes
 
@@ -53,15 +53,15 @@ All provider names and paths can be changed in `.env.local`.
 
 ## Easiest Mac setup
 
-1. Keep the downloaded `k-versation-visual-editor` folder somewhere permanent, such as **Documents**.
-2. Double-click `Start-K-VERSATION.command`.
+1. Keep the downloaded **Visual Story Maker** folder somewhere permanent, such as **Documents**.
+2. Double-click `Start-Visual-Story-Maker.command`.
 3. If macOS blocks the first launch, Control-click the file, choose **Open**, then confirm **Open**.
-4. Keep the Terminal window open while using K-VERSATION. The launcher opens the local website automatically.
+4. Keep the Terminal window open while using Visual Story Maker. The launcher opens the local website automatically.
 5. Press **Control-C** in that Terminal window when you are finished.
 
 On first launch, the script checks Node.js and FFmpeg, installs missing requirements through an existing Homebrew installation, creates local settings, and installs the app dependencies. If Homebrew is missing, its official setup page opens with instructions; after installing it, double-click the launcher again.
 
-Future use only requires double-clicking `Start-K-VERSATION.command`. Your projects remain in the app folder under `data`.
+Future use only requires double-clicking `Start-Visual-Story-Maker.command`. Your projects remain in the app folder under `data`.
 
 To enable automatic transcription, open `.env.local` in a text editor and set:
 
@@ -110,7 +110,7 @@ data/
   renders/    MP4 and metadata exports
 ```
 
-Set `K_VERSATION_DATA_DIR` to move this workspace. Server-side path validation prevents assets from resolving outside the configured directory. The app includes no analytics, tracking, accounts, or public-sharing features.
+Set `VISUAL_STORY_MAKER_DATA_DIR` to move this workspace. The previous `K_VERSATION_DATA_DIR` name remains supported for compatibility. Server-side path validation prevents assets from resolving outside the configured directory. The app includes no analytics, tracking, accounts, or public-sharing features.
 
 Do not commit `.env.local` or the `data` directory.
 
@@ -133,7 +133,8 @@ npm run check
 | `OPENAI_BASE_URL` | No | OpenAI-compatible API base URL |
 | `OPENAI_TRANSCRIPTION_MODEL` | No | Transcription model; defaults to `whisper-1` |
 | `OPENAI_ANALYSIS_MODEL` | No | Analysis model; defaults to `gpt-4.1-mini` |
-| `K_VERSATION_DATA_DIR` | No | Project and render storage |
+| `VISUAL_STORY_MAKER_DATA_DIR` | No | Project and render storage |
+| `K_VERSATION_DATA_DIR` | No | Legacy name for project and render storage |
 | `MAX_UPLOAD_MB` | No | Maximum narration upload size |
 | `FFMPEG_PATH` | No | FFmpeg executable |
 | `FFPROBE_PATH` | No | FFprobe executable |
