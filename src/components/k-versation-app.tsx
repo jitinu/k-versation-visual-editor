@@ -310,6 +310,11 @@ export function KVersationApp() {
 
   async function renderVideo() {
     if (!project) return;
+    setProject({
+      ...project,
+      status: "rendering",
+      statusMessage: "Rendering 1080p video with FFmpeg",
+    });
     setBusy(true);
     setError("");
     try {
