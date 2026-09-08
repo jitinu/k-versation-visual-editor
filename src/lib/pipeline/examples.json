@@ -1,13 +1,184 @@
 {
-  "_comment": "Few-shot examples encoding the K-VERSATION editorial style: sparse, intentional visuals for major events, named people/places, maps, documents, battles, emotional beats and topic transitions. Generic connective narration is deliberately NOT selected.",
+  "_comment": "Few-shot examples encoding the K-VERSATION editorial style: sparse, intentional visuals for major events, named people/places, maps, documents, battles, emotional beats and topic transitions. Generic connective narration is deliberately NOT selected. Calibrated against 13 published episodes (King Sejong, Son Heung-min, APEC 2025, Korean Convenience Store, Baduk, Han River, Korean Confucianism, Kpop Demon Hunters, Culinary Class Wars, Koreans in the NFL, Stacey Milbern, ...).",
   "style_notes": [
-    "A visual appears only when it adds information the words cannot: a face, a place, a document, a map, a scale.",
-    "Prefer one strong image per beat over several weak ones.",
-    "Maps at geographic transitions, portraits at first mention of a key person, documents when a text/treaty/letter is quoted.",
-    "Battles and major events get the single most iconic image, not a montage.",
-    "Emotional beats may use an evocative period photograph; abstract reflection stays on black."
+    "The screen is black by default; in published episodes visuals are on screen only 20-50% of the runtime.",
+    "A visual appears only when it adds information the words cannot: a face, a place, a building, an object, a document, a map, a logo, a table.",
+    "Visuals cluster at the introduction of a concrete subject (1-3 related images back-to-back, ~5 s each), then black while the narrator elaborates.",
+    "Maps at geographic transitions, portraits/press photos at first mention of a key person, documents when a text/treaty/manuscript is quoted, logos at first mention of an organisation or brand, tables/infographics for comparisons and statistics.",
+    "Battles, summits, matches and other major events get the single most iconic image, not a montage.",
+    "Images are shown at native aspect ratio centred on black, with hard cuts and no motion.",
+    "Emotional beats may use an evocative period photograph; opinions, definitions and abstract reflection stay on black."
   ],
   "examples": [
+    {
+      "transcript_window": "Right in the middle of Gwanghwamun Square in Seoul sits a huge golden statue of a king. That's King Sejong the Great, the fourth king of the Joseon dynasty, and he ruled from Gyeongbokgung Palace just behind it. Honestly, most Koreans would tell you he's the greatest king in their history, and I think that's fair. In 1443 he created Hangul, the Korean alphabet, and published it in a document called the Hunminjeongeum.",
+      "selected": [
+        {
+          "start_time": 0.0,
+          "end_time": 5.5,
+          "transcript_excerpt": "in the middle of Gwanghwamun Square in Seoul sits a huge golden statue of a king",
+          "visual_priority_score": 0.92,
+          "why_visual_is_helpful": "First mention of the subject and a famous landmark: show the statue itself.",
+          "search_query_1": "King Sejong statue Gwanghwamun Square",
+          "search_query_2": "Statue of King Sejong the Great Seoul",
+          "search_query_3": "Gwanghwamun Plaza Sejong statue",
+          "suggested_visual_type": "photo"
+        },
+        {
+          "start_time": 9.0,
+          "end_time": 14.0,
+          "transcript_excerpt": "he ruled from Gyeongbokgung Palace just behind it",
+          "visual_priority_score": 0.8,
+          "why_visual_is_helpful": "Named place introduced right after the statue; a second related image continues the cluster.",
+          "search_query_1": "Gyeongbokgung Palace Geunjeongjeon",
+          "search_query_2": "Gyeongbokgung throne hall Seoul",
+          "search_query_3": "Gyeongbokgung Palace photo",
+          "suggested_visual_type": "photo"
+        },
+        {
+          "start_time": 24.0,
+          "end_time": 31.0,
+          "transcript_excerpt": "In 1443 he created Hangul, the Korean alphabet, and published it in a document called the Hunminjeongeum",
+          "visual_priority_score": 0.95,
+          "why_visual_is_helpful": "A named historical document: show the actual manuscript page.",
+          "search_query_1": "Hunminjeongeum manuscript",
+          "search_query_2": "Hunminjeongeum Haerye page",
+          "search_query_3": "1446 Hangul original document",
+          "suggested_visual_type": "document"
+        }
+      ],
+      "skipped": [
+        {
+          "transcript_excerpt": "Honestly, most Koreans would tell you he's the greatest king in their history, and I think that's fair.",
+          "reason": "Narrator opinion / evaluation with no concrete referent. Stay on black."
+        }
+      ]
+    },
+    {
+      "transcript_window": "Son Heung-min was born in Chuncheon in 1992. His father, Son Woong-jung, was a former player himself and trained him relentlessly, and I mean relentlessly. At sixteen he left for Germany to join Hamburger SV's academy, and in 2015 Tottenham Hotspur paid twenty-two million pounds for him. What does that kind of pressure do to a teenager? We'll get to that.",
+      "selected": [
+        {
+          "start_time": 0.0,
+          "end_time": 4.5,
+          "transcript_excerpt": "Son Heung-min was born in Chuncheon in 1992",
+          "visual_priority_score": 0.9,
+          "why_visual_is_helpful": "First mention of the protagonist: a childhood photo if available, otherwise a clear portrait.",
+          "search_query_1": "Son Heung-min childhood photo",
+          "search_query_2": "Son Heung-min portrait South Korea national team",
+          "search_query_3": "Son Heung-min Chuncheon",
+          "suggested_visual_type": "portrait"
+        },
+        {
+          "start_time": 4.5,
+          "end_time": 9.5,
+          "transcript_excerpt": "His father, Son Woong-jung, was a former player himself",
+          "visual_priority_score": 0.78,
+          "why_visual_is_helpful": "Second named person introduced immediately after; continue the cluster with his face.",
+          "search_query_1": "Son Woong-jung",
+          "search_query_2": "Son Heung-min father Son Woong-jung academy",
+          "search_query_3": "Son Woong-jung coach photo",
+          "suggested_visual_type": "portrait"
+        },
+        {
+          "start_time": 15.0,
+          "end_time": 21.0,
+          "transcript_excerpt": "he left for Germany to join Hamburger SV's academy",
+          "visual_priority_score": 0.82,
+          "why_visual_is_helpful": "Named club and geographic move: show him in the Hamburg kit.",
+          "search_query_1": "Son Heung-min Hamburger SV 2010",
+          "search_query_2": "Son Heung-min Hamburg youth",
+          "search_query_3": "Hamburger SV logo",
+          "suggested_visual_type": "photo"
+        },
+        {
+          "start_time": 21.0,
+          "end_time": 27.0,
+          "transcript_excerpt": "in 2015 Tottenham Hotspur paid twenty-two million pounds for him",
+          "visual_priority_score": 0.85,
+          "why_visual_is_helpful": "Major career event with a named club: an iconic Tottenham action shot.",
+          "search_query_1": "Son Heung-min Tottenham Hotspur 2015 signing",
+          "search_query_2": "Son Heung-min Tottenham celebration",
+          "search_query_3": "Son Heung-min Premier League goal",
+          "suggested_visual_type": "photo"
+        }
+      ],
+      "skipped": [
+        {
+          "transcript_excerpt": "trained him relentlessly, and I mean relentlessly",
+          "reason": "Emphasis/repetition; the father is already on screen."
+        },
+        {
+          "transcript_excerpt": "What does that kind of pressure do to a teenager? We'll get to that.",
+          "reason": "Rhetorical question and forward reference. Stay on black."
+        }
+      ]
+    },
+    {
+      "transcript_window": "APEC, the Asia-Pacific Economic Cooperation, was founded in 1989 at the suggestion of Australian prime minister Bob Hawke. Today it has twenty-one member economies. Now, that sounds like a lot of countries, and it is. Korea last hosted the summit in Busan in 2005, and in 2025 the leaders meet again in Gyeongju, the ancient capital of the Silla kingdom, home to the Bulguksa temple.",
+      "selected": [
+        {
+          "start_time": 0.0,
+          "end_time": 4.0,
+          "transcript_excerpt": "APEC, the Asia-Pacific Economic Cooperation",
+          "visual_priority_score": 0.8,
+          "why_visual_is_helpful": "Organisation introduced by name: show its logo.",
+          "search_query_1": "APEC logo",
+          "search_query_2": "Asia-Pacific Economic Cooperation emblem",
+          "search_query_3": "APEC official logo svg",
+          "suggested_visual_type": "other"
+        },
+        {
+          "start_time": 4.0,
+          "end_time": 9.0,
+          "transcript_excerpt": "founded in 1989 at the suggestion of Australian prime minister Bob Hawke",
+          "visual_priority_score": 0.82,
+          "why_visual_is_helpful": "Named historical figure at first mention.",
+          "search_query_1": "Bob Hawke portrait 1989",
+          "search_query_2": "Bob Hawke Australian prime minister",
+          "search_query_3": "Bob Hawke APEC Canberra 1989",
+          "suggested_visual_type": "portrait"
+        },
+        {
+          "start_time": 9.0,
+          "end_time": 14.0,
+          "transcript_excerpt": "Today it has twenty-one member economies",
+          "visual_priority_score": 0.84,
+          "why_visual_is_helpful": "A count of members is clearer as an infographic of flags or a map.",
+          "search_query_1": "APEC member economies map",
+          "search_query_2": "APEC members flags infographic",
+          "search_query_3": "APEC 21 member economies",
+          "suggested_visual_type": "infographic"
+        },
+        {
+          "start_time": 19.0,
+          "end_time": 24.0,
+          "transcript_excerpt": "Korea last hosted the summit in Busan in 2005",
+          "visual_priority_score": 0.8,
+          "why_visual_is_helpful": "Specific past event: the iconic leaders' photo in traditional dress.",
+          "search_query_1": "APEC 2005 Busan leaders durumagi photo",
+          "search_query_2": "APEC Busan 2005 summit",
+          "search_query_3": "APEC 2005 Korea leaders group photo",
+          "suggested_visual_type": "photo"
+        },
+        {
+          "start_time": 27.0,
+          "end_time": 33.0,
+          "transcript_excerpt": "Gyeongju, the ancient capital of the Silla kingdom, home to the Bulguksa temple",
+          "visual_priority_score": 0.86,
+          "why_visual_is_helpful": "Named place and landmark at first mention.",
+          "search_query_1": "Bulguksa temple Gyeongju",
+          "search_query_2": "Gyeongju Silla royal tombs",
+          "search_query_3": "Gyeongju Bulguksa autumn",
+          "suggested_visual_type": "photo"
+        }
+      ],
+      "skipped": [
+        {
+          "transcript_excerpt": "Now, that sounds like a lot of countries, and it is.",
+          "reason": "Narrator aside; the infographic is already on screen."
+        }
+      ]
+    },
     {
       "transcript_window": "In the spring of 1815 Napoleon escaped from Elba and marched north. Now, you might think that's the end of the story, but actually it's where things get interesting. On the eighteenth of June his army met Wellington's coalition on the fields south of Waterloo.",
       "selected": [

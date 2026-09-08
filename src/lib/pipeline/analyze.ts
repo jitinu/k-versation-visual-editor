@@ -4,7 +4,7 @@ import { chatJson } from "../llm/openai";
 import { createLogger } from "../logger";
 import type { CandidateMoment, Transcript, VisualFrequency, VisualType } from "../types";
 import { clamp } from "../util";
-import { analysisSystemPrompt, targetRange } from "./prompts";
+import { FREQUENCY_TARGETS, analysisSystemPrompt, targetRange } from "./prompts";
 
 const log = createLogger("analyze");
 
@@ -34,6 +34,7 @@ export function enforceSparsity(
   duration: number,
 ): CandidateMoment[] {
   const { max } = targetRange(frequency, duration);
+  const minGap = FREQUENCY_TARGETS[frequency].minGapSeconds;
   const cleaned = moments
     .map((m) => {
       const start = clamp(m.start_time, 0, Math.max(duration, m.start_time));
@@ -48,7 +49,7 @@ export function enforceSparsity(
   const picked: CandidateMoment[] = [];
   for (const m of cleaned) {
     if (picked.length >= max) break;
-    const tooClose = picked.some((p) => Math.abs(p.start_time - m.start_time) < 8 || overlaps(p, m));
+    const tooClose = picked.some((p) => Math.abs(p.start_time - m.start_time) < minGap || overlaps(p, m));
     if (tooClose) continue;
     picked.push(m);
   }

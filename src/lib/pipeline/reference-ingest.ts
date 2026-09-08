@@ -12,6 +12,18 @@
  *   3. Detect visual changes (scene cuts) with ffmpeg's `select='gt(scene,0.4)'`.
  *   4. Correlate cuts with transcript content to produce `ReferenceMoment[]`.
  *   5. Let the user review and append the best ones to `examples.json`.
+ *
+ * Baseline measured manually (ffmpeg scene/black detection) on 13 published episodes,
+ * used to calibrate `FREQUENCY_TARGETS` and the analysis prompt:
+ *   - runtime 2:33–7:55 (median ≈5:20), 1280x720
+ *   - image changes: 3.7–9.8 per minute (runtime-weighted mean 5.8; each visual produces
+ *     ~2 cuts, in→out, so ≈3 images/min)
+ *   - median shot length ≈5 s, p90 ≈15 s; longest holds are documents/tables
+ *   - black screen 50–80% of runtime in most episodes; visuals appear in 8–27 clusters
+ *     of 1–3 related images at the introduction of a subject, then black again
+ *   - images shown at native aspect ratio, centred on black; hard cuts, no motion
+ *   - subjects: portraits/press photos of named people, buildings and places, maps,
+ *     manuscripts/documents, logos, tables/infographics, iconic event photos
  */
 
 export interface ReferenceSource {

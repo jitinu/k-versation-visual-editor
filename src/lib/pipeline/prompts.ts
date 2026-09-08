@@ -1,13 +1,20 @@
 import examples from "./examples.json";
 import type { VisualFrequency } from "../types";
 
+/**
+ * Calibrated against 13 published K-VERSATION videos (see reference-ingest.ts for the numbers):
+ * the channel averages ~3 image changes per minute, visuals are on screen only ~20–50% of the
+ * runtime (the rest is black), and the median hold is ~5 s. "Balanced" reproduces that density;
+ * "Minimal" is the deliberately sparser 4–10-per-video default; "Frequent" matches the densest
+ * sports/news episodes (~4–5 per minute).
+ */
 export const FREQUENCY_TARGETS: Record<
   VisualFrequency,
-  { perMinuteMin: number; perMinuteMax: number; absMin: number; absMax: number; label: string }
+  { perMinuteMin: number; perMinuteMax: number; absMin: number; absMax: number; minGapSeconds: number; label: string }
 > = {
-  minimal: { perMinuteMin: 1.0, perMinuteMax: 1.6, absMin: 4, absMax: 10, label: "Minimal (default)" },
-  balanced: { perMinuteMin: 1.6, perMinuteMax: 2.6, absMin: 6, absMax: 16, label: "Balanced" },
-  frequent: { perMinuteMin: 2.6, perMinuteMax: 4.0, absMin: 8, absMax: 26, label: "Frequent" },
+  minimal: { perMinuteMin: 1.0, perMinuteMax: 1.6, absMin: 4, absMax: 10, minGapSeconds: 8, label: "Minimal (default)" },
+  balanced: { perMinuteMin: 2.0, perMinuteMax: 3.0, absMin: 6, absMax: 24, minGapSeconds: 5, label: "Balanced (channel average)" },
+  frequent: { perMinuteMin: 3.0, perMinuteMax: 4.5, absMin: 8, absMax: 36, minGapSeconds: 3, label: "Frequent" },
 };
 
 export function targetRange(frequency: VisualFrequency, durationSeconds: number) {
@@ -23,14 +30,15 @@ export function analysisSystemPrompt(frequency: VisualFrequency, durationSeconds
   return `You are the visual editor for K-VERSATION, a narration-driven documentary channel.
 Your job: read a timestamped narration transcript and choose a SPARSE, INTENTIONAL set of moments where a single still image would genuinely help the viewer.
 
-EDITORIAL STYLE (K-VERSATION):
-- A visual appears only when it adds information the words cannot: a face, a place, a document, a map, a scale, an object.
-- Most of the narration should stay on a plain background. Silence in visuals is a feature.
-- Strong candidates: major events (battles, disasters, founding moments), FIRST mention of a named person, named places and geographic movement (maps), quoted documents/treaties/letters, statistics (infographic), emotional beats with a well-known period photograph, and clear topic transitions.
-- Never select: verbal connectors ("so", "now", "as I said"), narrator asides, rhetorical questions, abstract reflection, repeated mentions of something already shown, or generic statements with no concrete visual referent.
-- One strong image per beat. Do not create montages. Adjacent moments must be at least 8 seconds apart.
-- Each moment must be a contiguous span from the transcript, 4–10 seconds long (extend to 12s max only for a long quoted document).
-- Prefer specific, searchable subjects over generic ones ("Battle of Waterloo painting", not "war scene").
+EDITORIAL STYLE (K-VERSATION – learned from the channel's published episodes):
+- The screen is BLACK by default. In a typical episode visuals are on screen only 20–50% of the time; the rest is the narrator's voice over black. Silence in visuals is a feature.
+- A visual appears only when it adds information the words cannot: a face, a place, a building, an object, a document, a map, a logo, a chart, a table.
+- Visuals cluster around the INTRODUCTION of a concrete subject: when a new person, place, institution, product, event or artefact is named, show it (sometimes 2–3 closely related images back-to-back: statue → palace → manuscript), then return to black while the narrator elaborates, reflects or transitions.
+- Strong candidates: FIRST mention of a named person (portrait / press photo / action shot), named places and buildings, geographic context (map), quoted documents, treaties, manuscripts, scripts and letters, statistics and comparisons (chart, table, infographic), organisation/brand logos at first mention, major events (summits, battles, matches, disasters, founding moments) with the single most iconic photo, and emotional beats with a period photograph.
+- Never select: verbal connectors ("so", "now", "as I said"), narrator asides and opinions, rhetorical questions, abstract reflection, definitions with no concrete referent, repeated mentions of something already shown, or generic statements ("people were happy").
+- Each image is shown as-is at its native aspect ratio on black (letterboxed) – prefer clean, legible, high-resolution images that read well when centred on black. No crops, no montages, no Ken Burns.
+- Each moment is a contiguous span from the transcript, 4–10 seconds long (extend to 12 s max only for a long quoted document). Adjacent moments must be at least ${FREQUENCY_TARGETS[frequency].minGapSeconds} seconds apart.
+- Prefer specific, searchable subjects over generic ones ("Gyeongbokgung Palace Geunjeongjeon", not "Korean palace"; "Son Heung-min Tottenham 2023", not "football player").
 
 QUANTITY: the narration is ${Math.round(durationSeconds)} seconds long and the requested frequency is "${frequency}". Return between ${min} and ${max} moments, biased toward the LOWER end. If fewer moments truly deserve a visual, return fewer – never pad.
 
