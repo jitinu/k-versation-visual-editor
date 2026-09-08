@@ -4,8 +4,8 @@ import type { VisualFrequency } from "@/lib/types";
 
 const OPTIONS: Array<{ value: VisualFrequency; label: string; hint: string }> = [
   { value: "minimal", label: "Minimal", hint: "~4–10 visuals for a 3–8 min narration (default)" },
-  { value: "balanced", label: "Balanced", hint: "Roughly one visual every 25–40s" },
-  { value: "frequent", label: "Frequent", hint: "One visual every 15–25s" },
+  { value: "balanced", label: "Balanced", hint: "~2–3 visuals per minute – matches the channel's published episodes" },
+  { value: "frequent", label: "Frequent", hint: "~3–4.5 visuals per minute – densest sports/news style" },
 ];
 
 export function FrequencySelector({
