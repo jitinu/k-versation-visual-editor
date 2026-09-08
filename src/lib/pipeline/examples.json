@@ -1,0 +1,111 @@
+{
+  "_comment": "Few-shot examples encoding the K-VERSATION editorial style: sparse, intentional visuals for major events, named people/places, maps, documents, battles, emotional beats and topic transitions. Generic connective narration is deliberately NOT selected.",
+  "style_notes": [
+    "A visual appears only when it adds information the words cannot: a face, a place, a document, a map, a scale.",
+    "Prefer one strong image per beat over several weak ones.",
+    "Maps at geographic transitions, portraits at first mention of a key person, documents when a text/treaty/letter is quoted.",
+    "Battles and major events get the single most iconic image, not a montage.",
+    "Emotional beats may use an evocative period photograph; abstract reflection stays on black."
+  ],
+  "examples": [
+    {
+      "transcript_window": "In the spring of 1815 Napoleon escaped from Elba and marched north. Now, you might think that's the end of the story, but actually it's where things get interesting. On the eighteenth of June his army met Wellington's coalition on the fields south of Waterloo.",
+      "selected": [
+        {
+          "start_time": 0.0,
+          "end_time": 5.2,
+          "transcript_excerpt": "Napoleon escaped from Elba and marched north",
+          "visual_priority_score": 0.86,
+          "why_visual_is_helpful": "Geographic movement from Elba to Paris is far clearer on a map than in words.",
+          "search_query_1": "map Napoleon route Elba to Paris 1815",
+          "search_query_2": "Napoleon Hundred Days map",
+          "search_query_3": "Elba island map 1815",
+          "suggested_visual_type": "map"
+        },
+        {
+          "start_time": 11.0,
+          "end_time": 17.5,
+          "transcript_excerpt": "his army met Wellington's coalition on the fields south of Waterloo",
+          "visual_priority_score": 0.95,
+          "why_visual_is_helpful": "Major battle; a single iconic painting anchors the whole section.",
+          "search_query_1": "Battle of Waterloo painting 1815",
+          "search_query_2": "Waterloo battlefield Mont-Saint-Jean painting",
+          "search_query_3": "Wellington at Waterloo painting",
+          "suggested_visual_type": "photo"
+        }
+      ],
+      "skipped": [
+        {
+          "transcript_excerpt": "Now, you might think that's the end of the story, but actually it's where things get interesting.",
+          "reason": "Verbal connector / narrator aside – no visual referent."
+        }
+      ]
+    },
+    {
+      "transcript_window": "Ada Lovelace was born in London in 1815, the daughter of the poet Lord Byron. She never met her father. In her notes on Babbage's Analytical Engine she wrote what many consider the first computer program.",
+      "selected": [
+        {
+          "start_time": 0.0,
+          "end_time": 4.8,
+          "transcript_excerpt": "Ada Lovelace was born in London in 1815",
+          "visual_priority_score": 0.9,
+          "why_visual_is_helpful": "First mention of the protagonist – viewers need a face.",
+          "search_query_1": "Ada Lovelace portrait",
+          "search_query_2": "Ada Lovelace painting Margaret Carpenter",
+          "search_query_3": "Ada Lovelace daguerreotype",
+          "suggested_visual_type": "portrait"
+        },
+        {
+          "start_time": 9.0,
+          "end_time": 15.0,
+          "transcript_excerpt": "In her notes on Babbage's Analytical Engine she wrote what many consider the first computer program",
+          "visual_priority_score": 0.88,
+          "why_visual_is_helpful": "A quoted document – showing the actual page (Note G) makes the claim concrete.",
+          "search_query_1": "Ada Lovelace Note G diagram",
+          "search_query_2": "Analytical Engine Ada Lovelace notes 1843",
+          "search_query_3": "Babbage Analytical Engine drawing",
+          "suggested_visual_type": "document"
+        }
+      ],
+      "skipped": [
+        {
+          "transcript_excerpt": "She never met her father.",
+          "reason": "Short emotional aside; Byron portrait would distract from Ada. Stay on the previous portrait or black."
+        }
+      ]
+    },
+    {
+      "transcript_window": "So that's the political background. Let's move on to the economy. Between 1929 and 1933 industrial output in the United States fell by almost half, and unemployment climbed to twenty-five percent. Families lined up at soup kitchens across the country.",
+      "selected": [
+        {
+          "start_time": 6.0,
+          "end_time": 13.0,
+          "transcript_excerpt": "industrial output in the United States fell by almost half, and unemployment climbed to twenty-five percent",
+          "visual_priority_score": 0.8,
+          "why_visual_is_helpful": "Topic transition plus statistics – a chart communicates the scale instantly.",
+          "search_query_1": "US unemployment rate 1929 1933 chart",
+          "search_query_2": "Great Depression industrial production graph",
+          "search_query_3": "Great Depression statistics infographic",
+          "suggested_visual_type": "infographic"
+        },
+        {
+          "start_time": 13.0,
+          "end_time": 17.5,
+          "transcript_excerpt": "Families lined up at soup kitchens across the country",
+          "visual_priority_score": 0.84,
+          "why_visual_is_helpful": "Emotional beat; a period photograph humanises the numbers.",
+          "search_query_1": "Great Depression soup kitchen line photograph 1931",
+          "search_query_2": "breadline Great Depression photo",
+          "search_query_3": "Dorothea Lange Depression photograph",
+          "suggested_visual_type": "photo"
+        }
+      ],
+      "skipped": [
+        {
+          "transcript_excerpt": "So that's the political background. Let's move on to the economy.",
+          "reason": "Pure transition sentence; the visual belongs to the content that follows, not the connector."
+        }
+      ]
+    }
+  ]
+}
