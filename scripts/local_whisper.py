@@ -36,6 +36,7 @@ def main() -> int:
         language=args.language,
         initial_prompt=args.initial_prompt,
         vad_filter=True,
+        condition_on_previous_text=False,
     )
 
     words = []

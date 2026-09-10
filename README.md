@@ -38,7 +38,7 @@ ollama pull llava                     # vision model for image ranking (~4.7 GB)
 
 With nothing in `.env.local` the defaults are `TRANSCRIPTION_PROVIDER=local`, `LLM_PROVIDER=ollama`, `IMAGE_SEARCH_PROVIDERS=wikimedia,openverse,duckduckgo`, `VISION_RANKING_ENABLED=true`. Tunables: `LOCAL_WHISPER_MODEL` (`tiny|base|small|medium|large-v3`; `medium` is noticeably better for Korean names), `LOCAL_WHISPER_DEVICE=cuda` if you have an NVIDIA GPU, `OLLAMA_MODEL`, `OLLAMA_VISION_MODEL`, `OLLAMA_BASE_URL`, `PYTHON_PATH`.
 
-When you paste a script, the first ~200 words are fed to Whisper as a spelling hint and the full script is then aligned word-by-word to the audio timestamps, so the timeline uses your exact wording at the real spoken times.
+When you paste a script, it is aligned word-by-word to the audio timestamps, so the timeline uses your exact wording at the real spoken times.
 
 ### Providers / API keys
 

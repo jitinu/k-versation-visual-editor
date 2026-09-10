@@ -58,10 +58,11 @@ async function transcribeWithOpenAI(absMedia: string, tmpDir: string): Promise<T
 
 /**
  * LOCAL provider (free, offline): runs `scripts/local_whisper.py` (faster-whisper) with
- * word timestamps. The first ~200 words of the script are passed as `initial_prompt`
- * so proper nouns are spelled the way the script spells them.
+ * word timestamps. The script is deliberately NOT passed as `initial_prompt`: Whisper tends to
+ * hallucinate/loop when primed with long text, which corrupts the timing anchors that
+ * `alignScript` relies on. Wording is fixed downstream by the alignment step instead.
  */
-async function transcribeLocal(absMedia: string, tmpDir: string, script?: string): Promise<Transcript> {
+async function transcribeLocal(absMedia: string, tmpDir: string): Promise<Transcript> {
   const audioPath = path.join(tmpDir, "audio-16k.mp3");
   await extractAudio(absMedia, audioPath);
   const { localModel, localDevice, localComputeType, pythonPath } = config.transcription;
@@ -75,9 +76,6 @@ async function transcribeLocal(absMedia: string, tmpDir: string, script?: string
     "--compute-type",
     localComputeType,
   ];
-  const prompt = script ? tokenizeWords(script).slice(0, 200).join(" ") : "";
-  if (prompt) args.push("--initial-prompt", prompt);
-
   const stdout = await new Promise<string>((resolve, reject) => {
     const child = spawn(pythonPath, args, { stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
@@ -97,7 +95,7 @@ async function transcribeLocal(absMedia: string, tmpDir: string, script?: string
     words: TranscriptWord[];
     segments: Array<{ start: number; end: number; text: string }>;
   };
-  const words = json.words.filter((w) => w.word);
+  const words = json.words.filter((w) => w.word && w.end > w.start);
   return {
     text: json.text,
     language: json.language,
@@ -168,7 +166,7 @@ export async function transcribe(absMedia: string, tmpDir: string, script?: stri
   const duration = await probeDuration(absMedia);
   try {
     if (provider === "local") {
-      const t = await transcribeLocal(absMedia, tmpDir, script);
+      const t = await transcribeLocal(absMedia, tmpDir);
       if (!t.duration) t.duration = duration;
       return t;
     }
