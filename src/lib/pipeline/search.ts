@@ -16,7 +16,12 @@ export function authorityFor(domain: string): number {
   if (/(museum|archive|archives|library|loc\.gov|britishmuseum|smithsonian|nationalarchives|europeana|gallica|rijksmuseum|metmuseum)/.test(d))
     return 0.9;
   if (/(britannica|history\.com|nationalgeographic|bbc\.co\.uk|nytimes|reuters|apnews)/.test(d)) return 0.7;
-  if (/(shutterstock|gettyimages|alamy|istockphoto|dreamstime|123rf|depositphotos|adobe\.com|stock)/.test(d)) return 0.1;
+  if (
+    /(shutterstock|gettyimages|alamy|istockphoto|dreamstime|123rf|depositphotos|adobe\.com|stock|freepik|vecteezy|pngtree|pixabay|pexels|unsplash|canva|storyblocks|pond5|vectorstock|midjourney|lexica|openart)/.test(
+      d,
+    )
+  )
+    return 0.1;
   if (/(pinterest|facebook|instagram|twitter|x\.com|tiktok|reddit|quora)/.test(d)) return 0.15;
   return 0.4;
 }
