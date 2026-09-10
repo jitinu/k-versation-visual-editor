@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { config } from "../config";
@@ -56,6 +57,60 @@ async function transcribeWithOpenAI(absMedia: string, tmpDir: string): Promise<T
 }
 
 /**
+ * LOCAL provider (free, offline): runs `scripts/local_whisper.py` (faster-whisper) with
+ * word timestamps. The first ~200 words of the script are passed as `initial_prompt`
+ * so proper nouns are spelled the way the script spells them.
+ */
+async function transcribeLocal(absMedia: string, tmpDir: string, script?: string): Promise<Transcript> {
+  const audioPath = path.join(tmpDir, "audio-16k.mp3");
+  await extractAudio(absMedia, audioPath);
+  const { localModel, localDevice, localComputeType, pythonPath } = config.transcription;
+  const args = [
+    path.join(process.cwd(), "scripts", "local_whisper.py"),
+    audioPath,
+    "--model",
+    localModel,
+    "--device",
+    localDevice,
+    "--compute-type",
+    localComputeType,
+  ];
+  const prompt = script ? tokenizeWords(script).slice(0, 200).join(" ") : "";
+  if (prompt) args.push("--initial-prompt", prompt);
+
+  const stdout = await new Promise<string>((resolve, reject) => {
+    const child = spawn(pythonPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    let err = "";
+    child.stdout.on("data", (d: Buffer) => (out += d.toString()));
+    child.stderr.on("data", (d: Buffer) => (err += d.toString()));
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve(out);
+      else reject(new Error(`local whisper exited ${code}: ${err.trim().split("\n").slice(-3).join(" | ")}`));
+    });
+  });
+  const json = JSON.parse(stdout) as {
+    text: string;
+    language?: string;
+    duration?: number;
+    words: TranscriptWord[];
+    segments: Array<{ start: number; end: number; text: string }>;
+  };
+  const words = json.words.filter((w) => w.word);
+  return {
+    text: json.text,
+    language: json.language,
+    duration: json.duration ?? (words.at(-1)?.end ?? 0),
+    words,
+    segments: json.segments.length
+      ? json.segments.map((s, i) => ({ id: `seg_${i}`, ...s }))
+      : segmentWords(words),
+    provider: "local",
+  };
+}
+
+/**
  * WhisperX adapter: expects a self-hosted HTTP service (WHISPERX_URL) that accepts
  * multipart `file` and returns `{ text, language, word_segments: [{word,start,end}] }`
  * (the default whisperx JSON output shape).
@@ -95,7 +150,7 @@ export function mockTranscript(duration: number, script?: string): Transcript {
       "In eighteen fifteen, Napoleon Bonaparte faced the allied armies at Waterloo in present-day Belgium. " +
       "The Duke of Wellington held the ridge at Mont-Saint-Jean while Prussian forces under Blücher marched to his aid. " +
       "By nightfall the French army was broken and Napoleon's final campaign was over. " +
-      "Set OPENAI_API_KEY in your environment to enable real transcription.";
+      "Install faster-whisper (pip install faster-whisper) or set OPENAI_API_KEY to enable real transcription.";
   const tokens = tokenizeWords(text);
   const total = duration > 0 ? duration : Math.max(10, tokens.length * 0.4);
   const per = total / Math.max(tokens.length, 1);
@@ -112,6 +167,11 @@ export async function transcribe(absMedia: string, tmpDir: string, script?: stri
   log.info(`transcribing with provider=${provider}`);
   const duration = await probeDuration(absMedia);
   try {
+    if (provider === "local") {
+      const t = await transcribeLocal(absMedia, tmpDir, script);
+      if (!t.duration) t.duration = duration;
+      return t;
+    }
     if (provider === "openai") {
       const t = await transcribeWithOpenAI(absMedia, tmpDir);
       if (!t.duration) t.duration = duration;

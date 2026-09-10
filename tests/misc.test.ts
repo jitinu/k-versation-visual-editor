@@ -56,3 +56,17 @@ describe("path safety", () => {
     expect(resolveInProject("prj_abc", "images/a.jpg")).toMatch(/prj_abc[\\/]images[\\/]a\.jpg$/);
   });
 });
+
+import { parseJsonLoose } from "../src/lib/llm/openai";
+
+describe("parseJsonLoose", () => {
+  it("parses plain JSON", () => {
+    expect(parseJsonLoose<{ a: number }>('{"a":1}')).toEqual({ a: 1 });
+  });
+  it("extracts JSON wrapped in markdown fences / prose (local models)", () => {
+    expect(parseJsonLoose<{ a: number }>('Here you go:\n```json\n{"a": 2}\n```')).toEqual({ a: 2 });
+  });
+  it("throws when no object is present", () => {
+    expect(() => parseJsonLoose("nope")).toThrow();
+  });
+});

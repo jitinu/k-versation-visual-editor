@@ -102,8 +102,8 @@ export function mockAnalyze(transcript: Transcript, frequency: VisualFrequency):
 }
 
 export async function analyzeMoments(transcript: Transcript, frequency: VisualFrequency): Promise<CandidateMoment[]> {
-  if (config.llm.provider !== "openai") {
-    log.info("using MOCK analysis (LLM_PROVIDER!=openai)");
+  if (config.llm.provider === "mock") {
+    log.info("using MOCK analysis (LLM_PROVIDER=mock)");
     return mockAnalyze(transcript, frequency);
   }
   try {

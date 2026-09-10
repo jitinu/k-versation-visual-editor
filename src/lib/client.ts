@@ -55,7 +55,7 @@ export const api = {
     return request<Project>(`/api/projects/${id}/entries/${entryId}/image`, { method: "POST", body: form });
   },
   config: () =>
-    request<{ transcription: string; llm: string; vision: string; search: string[]; mock: boolean }>("/api/config"),
+    request<{ transcription: string; llm: string; vision: string; search: string[]; mock: boolean; warnings?: string[] }>("/api/config"),
 };
 
 export function fileUrl(projectId: string, rel: string): string {

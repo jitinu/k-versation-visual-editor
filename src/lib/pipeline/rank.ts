@@ -44,7 +44,7 @@ async function visionScore(
       { role: "system", content: visionRankSystemPrompt() },
       { role: "user", content },
     ],
-    { model: config.openai.visionModel, temperature: 0.1, maxTokens: 1500 },
+    { model: config.llm.visionModel, temperature: 0.1, maxTokens: 1500 },
   );
   const map = new Map<string, { score: number; reason: string; acceptable: boolean }>();
   for (const r of res.results ?? []) {
@@ -69,7 +69,7 @@ export async function rankCandidates(
     return { candidates, chosenId: null, confidence: 0, skippedReason: "no candidate passed the pre-filter" };
   }
 
-  let useVision = config.vision.enabled && config.llm.provider === "openai";
+  let useVision = config.vision.enabled && config.llm.provider !== "mock";
   const shortlist = [...viable]
     .sort((a, b) => (b.prefilterScore ?? 0) - (a.prefilterScore ?? 0))
     .slice(0, config.vision.maxCandidatesPerMoment);

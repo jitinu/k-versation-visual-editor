@@ -110,6 +110,104 @@ async function searchWikimedia(query: string, limit: number): Promise<ImageCandi
     });
 }
 
+/* ---------------- Openverse (no key required; CC-licensed images from Flickr, museums, ...) ---------------- */
+
+async function searchOpenverse(query: string, limit: number): Promise<ImageCandidate[]> {
+  const params = new URLSearchParams({
+    q: query,
+    page_size: String(Math.min(limit, 20)),
+    mature: "false",
+  });
+  const json = await fetchJson<{
+    results?: Array<{
+      id: string;
+      title?: string;
+      url: string;
+      thumbnail?: string;
+      foreign_landing_url: string;
+      source: string;
+      provider: string;
+      creator?: string;
+      license: string;
+      license_version?: string;
+      width?: number;
+      height?: number;
+    }>;
+  }>(`https://api.openverse.org/v1/images/?${params}`);
+  return (json.results ?? []).map((r) => {
+    const domain = domainOf(r.foreign_landing_url) || r.source;
+    return {
+      id: newId("img"),
+      imageUrl: r.url,
+      thumbnailUrl: r.thumbnail,
+      sourcePageUrl: r.foreign_landing_url,
+      sourceName: r.source || r.provider,
+      title: r.title ?? query,
+      domain,
+      width: r.width,
+      height: r.height,
+      attribution: r.creator,
+      license: r.license_version ? `CC ${r.license.toUpperCase()} ${r.license_version}` : r.license,
+      provider: "openverse",
+      authority: Math.max(authorityFor(domain), 0.6),
+    } satisfies ImageCandidate;
+  });
+}
+
+/* ---------------- DuckDuckGo Images (no key; unofficial endpoint, broad web coverage) ---------------- */
+
+async function fetchText(url: string, init?: RequestInit): Promise<string> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), config.search.timeoutMs);
+  try {
+    const res = await fetch(url, {
+      ...init,
+      signal: ctrl.signal,
+      headers: { "User-Agent": BROWSER_UA, ...(init?.headers ?? {}) },
+    });
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    return await res.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const BROWSER_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+
+async function searchDuckDuckGo(query: string, limit: number): Promise<ImageCandidate[]> {
+  const html = await fetchText(`https://duckduckgo.com/?${new URLSearchParams({ q: query, iax: "images", ia: "images" })}`);
+  const vqd = html.match(/vqd=["']?([\d-]+)/)?.[1];
+  if (!vqd) throw new Error("DuckDuckGo: could not obtain vqd token");
+  const params = new URLSearchParams({ l: "us-en", o: "json", q: query, vqd, f: ",size:Large,,,,", p: "1" });
+  const json = JSON.parse(
+    await fetchText(`https://duckduckgo.com/i.js?${params}`, {
+      headers: { Referer: "https://duckduckgo.com/", Accept: "application/json" },
+    }),
+  ) as {
+    results?: Array<{ title: string; image: string; thumbnail: string; url: string; height: number; width: number; source: string }>;
+  };
+  return (json.results ?? [])
+    .map((r) => {
+      const domain = domainOf(r.url);
+      return {
+        id: newId("img"),
+        imageUrl: r.image,
+        thumbnailUrl: r.thumbnail,
+        sourcePageUrl: r.url,
+        sourceName: domain,
+        title: r.title,
+        domain,
+        width: r.width,
+        height: r.height,
+        provider: "duckduckgo",
+        authority: authorityFor(domain),
+      } satisfies ImageCandidate;
+    })
+    .filter((c) => c.authority > 0.15) // drop stock-photo (watermarked) and social-media hits up front
+    .slice(0, limit);
+}
+
 /* ---------------- SerpAPI (Google Images) ---------------- */
 
 async function searchSerpApi(query: string, limit: number): Promise<ImageCandidate[]> {
@@ -247,6 +345,8 @@ export function mockCandidates(query: string, count: number): ImageCandidate[] {
 
 const providerFns: Record<Exclude<SearchProvider, "mock">, (q: string, limit: number) => Promise<ImageCandidate[]>> = {
   wikimedia: searchWikimedia,
+  openverse: searchOpenverse,
+  duckduckgo: searchDuckDuckGo,
   serpapi: searchSerpApi,
   bing: searchBing,
   google: searchGoogleCse,
@@ -261,9 +361,11 @@ async function runProvider(provider: SearchProvider, query: string, limit: numbe
 }
 
 /**
- * Gather 8–20 candidates for a moment. Authoritative providers (Wikimedia) are
- * queried first; broader providers only if we are still short. Falls back to
- * MOCK candidates when every provider fails so the pipeline stays runnable.
+ * Gather 8–20 candidates for a moment from EVERY configured provider so the pool is
+ * not limited to one source: round 1 runs the most specific query on each provider
+ * in parallel (authoritative providers listed first keep their share of the pool);
+ * later queries only run while we are still short. Falls back to MOCK candidates
+ * when every provider fails so the pipeline stays runnable.
  */
 export async function searchCandidates(moment: CandidateMoment): Promise<{ candidates: ImageCandidate[]; mocked: boolean }> {
   const queries = [moment.search_query_1, moment.search_query_2, moment.search_query_3].filter((q) => q?.trim());
@@ -274,30 +376,33 @@ export async function searchCandidates(moment: CandidateMoment): Promise<{ candi
 
   const providers: SearchProvider[] = [...config.search.providers];
   if (!providers.includes("wikimedia") && !providers.includes("mock")) providers.unshift("wikimedia");
+  const perProvider = Math.max(4, Math.ceil(maxCandidates / providers.length));
 
-  for (const provider of providers) {
-    for (const q of queries) {
-      if (out.length >= maxCandidates) break;
-      try {
-        const results = await runProvider(provider, q, Math.min(12, maxCandidates - out.length));
-        anySuccess = true;
-        for (const c of results) {
-          if (seen.has(c.imageUrl)) continue;
-          seen.add(c.imageUrl);
-          out.push(c);
-        }
-      } catch (err) {
-        log.warn(`provider ${provider} failed for "${q}"`, err);
-      }
-      if (provider === "wikimedia" && out.length >= minCandidates) break;
+  const add = (results: ImageCandidate[]) => {
+    for (const c of results) {
+      if (!c.imageUrl || seen.has(c.imageUrl)) continue;
+      seen.add(c.imageUrl);
+      out.push(c);
     }
-    if (out.length >= minCandidates) break;
+  };
+
+  for (const [qi, q] of queries.entries()) {
+    if (qi > 0 && out.length >= minCandidates) break;
+    const settled = await Promise.allSettled(providers.map((p) => runProvider(p, q, perProvider)));
+    settled.forEach((r, i) => {
+      if (r.status === "fulfilled") {
+        anySuccess = true;
+        add(r.value);
+      } else log.warn(`provider ${providers[i]} failed for "${q}"`, r.reason);
+    });
   }
 
   if (out.length === 0) {
     log.warn(`no results for moment @${moment.start_time}s – using MOCK placeholders`);
     return { candidates: mockCandidates(queries[0] ?? moment.transcript_excerpt, minCandidates), mocked: true };
   }
-  log.info(`moment @${moment.start_time}s: ${out.length} candidates (providers ok=${anySuccess})`);
+  // authoritative sources first so the cap keeps them; broader web results fill the rest
+  out.sort((a, b) => b.authority - a.authority);
+  log.info(`moment @${moment.start_time}s: ${out.length} candidates from ${new Set(out.map((c) => c.provider)).size} providers (ok=${anySuccess})`);
   return { candidates: out.slice(0, maxCandidates), mocked: false };
 }

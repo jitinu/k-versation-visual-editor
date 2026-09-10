@@ -30,7 +30,7 @@ export function heuristicTitle(text: string): string {
 
 export async function generateTitle(transcript: Transcript): Promise<{ title: string; alternates: string[] }> {
   const excerpt = transcript.text.slice(0, 12000);
-  if (config.llm.provider !== "openai") {
+  if (config.llm.provider === "mock") {
     return { title: heuristicTitle(excerpt), alternates: [] };
   }
   try {

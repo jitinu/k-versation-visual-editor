@@ -2,7 +2,7 @@ import { config } from "../config";
 import { createLogger } from "../logger";
 import { withRetry } from "../util";
 
-const log = createLogger("openai");
+const log = createLogger("llm");
 
 export class LlmUnavailableError extends Error {}
 
@@ -15,10 +15,15 @@ export interface ChatMessage {
   content: ChatContent;
 }
 
+/**
+ * Chat completions against any OpenAI-compatible endpoint (OpenAI, Ollama, LM Studio, ...).
+ * Provider/base URL/model come from `config.llm`.
+ */
 function headers(): Record<string, string> {
-  if (!config.openai.apiKey) throw new LlmUnavailableError("OPENAI_API_KEY is not configured");
+  if (config.llm.provider === "mock") throw new LlmUnavailableError("LLM_PROVIDER=mock");
+  if (!config.llm.apiKey) throw new LlmUnavailableError(`${config.llm.provider}: API key is not configured`);
   return {
-    Authorization: `Bearer ${config.openai.apiKey}`,
+    Authorization: `Bearer ${config.llm.apiKey}`,
     "Content-Type": "application/json",
   };
 }
@@ -33,10 +38,10 @@ export async function chatJson<T>(
   messages: ChatMessage[],
   opts: { model?: string; temperature?: number; maxTokens?: number } = {},
 ): Promise<T> {
-  const model = opts.model ?? config.openai.textModel;
+  const model = opts.model ?? config.llm.textModel;
   return withRetry(
     async () => {
-      const res = await fetch(`${config.openai.baseUrl}/chat/completions`, {
+      const res = await fetch(`${config.llm.baseUrl}/chat/completions`, {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({
@@ -50,19 +55,31 @@ export async function chatJson<T>(
       if (!res.ok) {
         const msg = await readError(res);
         if (res.status === 401 || res.status === 403) throw new LlmUnavailableError(msg);
-        throw new Error(`OpenAI chat failed: ${msg}`);
+        throw new Error(`${config.llm.provider} chat failed: ${msg}`);
       }
       const json = (await res.json()) as {
         choices: Array<{ message: { content: string } }>;
       };
       const content = json.choices?.[0]?.message?.content ?? "{}";
-      return JSON.parse(content) as T;
+      return parseJsonLoose<T>(content);
     },
     {
       retries: 2,
       onRetry: (err, attempt) => log.warn(`chat retry ${attempt}`, err),
     },
   );
+}
+
+/** Local models sometimes wrap JSON in ``` fences or prose; extract the outermost object. */
+export function parseJsonLoose<T>(content: string): T {
+  try {
+    return JSON.parse(content) as T;
+  } catch {
+    const start = content.indexOf("{");
+    const end = content.lastIndexOf("}");
+    if (start === -1 || end <= start) throw new Error("LLM did not return JSON");
+    return JSON.parse(content.slice(start, end + 1)) as T;
+  }
 }
 
 export interface OpenAiTranscription {

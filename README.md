@@ -8,7 +8,10 @@ Personal-use web app that turns a narration recording into a sparse, editable vi
 
 - Node 20+
 - `ffmpeg` and `ffprobe` on `PATH` (or set `FFMPEG_PATH` / `FFPROBE_PATH`)
-- Optional API keys (see below). With **no keys** the app runs fully in **mock mode**: a heuristic transcript/analysis, Wikimedia Commons search (no key), and generated placeholder images when the network is unavailable. Mock results are labelled in the UI/project data (`transcript.provider = "mock"`, `candidate.provider = "mock"`).
+- **Free/local AI (default, no API keys):** Python 3.9+ with `faster-whisper` for word-timestamped transcription, and [Ollama](https://ollama.com) for moment selection, titles and vision ranking. See *Free local setup* below.
+- Image search needs no keys: Wikimedia Commons + Openverse (CC-licensed) + DuckDuckGo Images are on by default.
+- Optional paid alternative: `OPENAI_API_KEY` (switches transcription/LLM/vision to OpenAI).
+- If the local tools are missing the app still runs in labelled **mock mode** (evenly spaced timing, heuristic moment picking) and the home page shows a warning banner saying what to install.
 
 ## Setup
 
@@ -20,13 +23,30 @@ npm run dev                  # http://localhost:3000
 
 Other scripts: `npm run build`, `npm start`, `npm run lint`, `npm run typecheck`, `npm test`.
 
-### API keys
+### Free local setup (recommended)
+
+```bash
+# 1. Transcription with real word timestamps (CPU is fine: ~6 s per 45 s of audio with the `small` model)
+pip install faster-whisper            # model downloads to ~/.cache on first run
+
+# 2. Local LLM for moment picking / title / vision ranking
+#    macOS: brew install ollama   (or download from https://ollama.com)
+ollama serve &
+ollama pull llama3.1                  # text model (~4.7 GB)
+ollama pull llava                     # vision model for image ranking (~4.7 GB)
+```
+
+With nothing in `.env.local` the defaults are `TRANSCRIPTION_PROVIDER=local`, `LLM_PROVIDER=ollama`, `IMAGE_SEARCH_PROVIDERS=wikimedia,openverse,duckduckgo`, `VISION_RANKING_ENABLED=true`. Tunables: `LOCAL_WHISPER_MODEL` (`tiny|base|small|medium|large-v3`; `medium` is noticeably better for Korean names), `LOCAL_WHISPER_DEVICE=cuda` if you have an NVIDIA GPU, `OLLAMA_MODEL`, `OLLAMA_VISION_MODEL`, `OLLAMA_BASE_URL`, `PYTHON_PATH`.
+
+When you paste a script, the first ~200 words are fed to Whisper as a spelling hint and the full script is then aligned word-by-word to the audio timestamps, so the timeline uses your exact wording at the real spoken times.
+
+### Providers / API keys
 
 | Purpose | Env var | Notes |
 | --- | --- | --- |
-| Transcription (word timestamps), story analysis, title, vision ranking | `OPENAI_API_KEY` | Enables `TRANSCRIPTION_PROVIDER=openai`, `LLM_PROVIDER=openai`, `VISION_RANKING_ENABLED=true` by default. |
-| Self-hosted WhisperX alignment | `TRANSCRIPTION_PROVIDER=whisperx`, `WHISPERX_URL` | Any HTTP service returning WhisperX-style `word_segments`. |
-| Image search | `IMAGE_SEARCH_PROVIDERS` | Comma list tried in order: `wikimedia` (no key), `serpapi` (`SERPAPI_API_KEY`), `bing` (`BING_IMAGE_SEARCH_KEY`), `google` (`GOOGLE_CSE_API_KEY` + `GOOGLE_CSE_CX`), `mock`. |
+| Transcription | `TRANSCRIPTION_PROVIDER` | `local` (faster-whisper, default) · `openai` (`OPENAI_API_KEY`) · `whisperx` (`WHISPERX_URL`, self-hosted service returning `word_segments`) · `mock` |
+| Story analysis, title, vision ranking | `LLM_PROVIDER` | `ollama` (default, keyless) · `openai` (`OPENAI_API_KEY`, default when the key is set) · `mock` |
+| Image search | `IMAGE_SEARCH_PROVIDERS` | Comma list, all queried in parallel and pooled (authoritative sources sorted first): `wikimedia`, `openverse`, `duckduckgo` (no keys) · `google` (`GOOGLE_CSE_API_KEY` + `GOOGLE_CSE_CX`, free 100 queries/day) · `serpapi` (`SERPAPI_API_KEY`) · `bing` (`BING_IMAGE_SEARCH_KEY`) · `mock`. DuckDuckGo uses an unofficial endpoint and drops stock-photo/social domains up front. |
 
 All provider calls are retried (`SEARCH_RETRIES`) with timeouts and never log key values.
 
@@ -40,6 +60,8 @@ All provider calls are retried (`SEARCH_RETRIES`) with timeouts and never log ke
 6. Review each moment: replace from alternatives, re-search with your own query, upload your own image, adjust start/end, remove, or regenerate. Global controls: regenerate all / low-confidence only, change frequency and rerun analysis, re-render.
 7. **Export Video** starts a background render job (status polled every second). Download the MP4, transcript, SRT, or timeline JSON.
 8. Return to the home page later — the project list reopens saved projects.
+
+Check `GET /api/config` (or the banner on the home page) to see which providers are active and whether Ollama / faster-whisper were detected.
 
 No sample audio? Generate one: `ffmpeg -f lavfi -i "sine=frequency=440:duration=60" -ac 1 sample.mp3` and paste any paragraph as the script (mock mode uses the script for content).
 
@@ -57,7 +79,7 @@ src/lib/pipeline/
   title.ts               Auto title generation
   prompts.ts + examples.json   Editorial system prompt + few-shot K-VERSATION style
   analyze.ts             Structured JSON moments (zod) + sparsity enforcement
-  search.ts              Wikimedia / SerpAPI / Bing / Google CSE providers, authority scoring
+  search.ts              Wikimedia / Openverse / DuckDuckGo / SerpAPI / Bing / Google CSE providers, authority scoring
   images.ts              Download, dimensions, dedup (dHash), watermark heuristic
   rank.ts                Optional vision ranking; skips moment if nothing fits
   timeline.ts            Timeline entries, hold 4–10s, overlap trimming

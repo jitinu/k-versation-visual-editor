@@ -16,9 +16,13 @@ function num(name: string, fallback: number): number {
   return Number.isFinite(v) && process.env[name] ? v : fallback;
 }
 
-export type TranscriptionProvider = "openai" | "whisperx" | "mock";
-export type LlmProvider = "openai" | "mock";
-export type SearchProvider = "wikimedia" | "serpapi" | "bing" | "google" | "mock";
+export type TranscriptionProvider = "local" | "openai" | "whisperx" | "mock";
+export type LlmProvider = "openai" | "ollama" | "mock";
+export type SearchProvider = "wikimedia" | "openverse" | "duckduckgo" | "serpapi" | "bing" | "google" | "mock";
+
+const hasOpenAiKey = Boolean(process.env.OPENAI_API_KEY);
+const llmProvider = env("LLM_PROVIDER", hasOpenAiKey ? "openai" : "ollama") as LlmProvider;
+const ollamaBaseUrl = env("OLLAMA_BASE_URL", "http://localhost:11434/v1");
 
 export const config = {
   dataDir: path.resolve(env("K_VERSATION_DATA_DIR", path.join(process.cwd(), "data"))),
@@ -39,19 +43,29 @@ export const config = {
   },
 
   transcription: {
-    provider: env("TRANSCRIPTION_PROVIDER", process.env.OPENAI_API_KEY ? "openai" : "mock") as TranscriptionProvider,
+    provider: env("TRANSCRIPTION_PROVIDER", hasOpenAiKey ? "openai" : "local") as TranscriptionProvider,
     whisperxUrl: env("WHISPERX_URL"),
+    /** faster-whisper (local, free): model size and compute device */
+    localModel: env("LOCAL_WHISPER_MODEL", "small"),
+    localDevice: env("LOCAL_WHISPER_DEVICE", "cpu"),
+    localComputeType: env("LOCAL_WHISPER_COMPUTE_TYPE", "int8"),
+    pythonPath: env("PYTHON_PATH", "python3"),
   },
+  /** Chat/vision endpoint actually used for analysis, titles and ranking (OpenAI-compatible). */
   llm: {
-    provider: env("LLM_PROVIDER", process.env.OPENAI_API_KEY ? "openai" : "mock") as LlmProvider,
+    provider: llmProvider,
+    baseUrl: llmProvider === "ollama" ? ollamaBaseUrl : env("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+    apiKey: llmProvider === "ollama" ? env("OLLAMA_API_KEY", "ollama") : env("OPENAI_API_KEY"),
+    textModel: llmProvider === "ollama" ? env("OLLAMA_MODEL", "llama3.1") : env("LLM_MODEL", "gpt-4o-mini"),
+    visionModel: llmProvider === "ollama" ? env("OLLAMA_VISION_MODEL", "llava") : env("VISION_MODEL", "gpt-4o-mini"),
   },
   vision: {
-    enabled: bool("VISION_RANKING_ENABLED", Boolean(process.env.OPENAI_API_KEY)),
+    enabled: bool("VISION_RANKING_ENABLED", llmProvider !== "mock"),
     maxCandidatesPerMoment: num("VISION_MAX_CANDIDATES", 8),
     minConfidence: num("VISION_MIN_CONFIDENCE", 0.55),
   },
   search: {
-    providers: env("IMAGE_SEARCH_PROVIDERS", "wikimedia")
+    providers: env("IMAGE_SEARCH_PROVIDERS", "wikimedia,openverse,duckduckgo")
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean) as SearchProvider[],
@@ -86,7 +100,7 @@ export function describeProviders() {
   return {
     transcription: config.transcription.provider,
     llm: config.llm.provider,
-    vision: config.vision.enabled ? "openai" : "disabled",
+    vision: config.vision.enabled && config.llm.provider !== "mock" ? config.llm.provider : "disabled",
     search: config.search.providers,
     storage: config.storageBackend,
     mock: config.llm.provider === "mock" || config.transcription.provider === "mock",
