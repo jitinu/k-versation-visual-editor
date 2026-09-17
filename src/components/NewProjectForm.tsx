@@ -1,26 +1,19 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
-import type { VisualFrequency } from "@/lib/types";
 import { Dropzone } from "./Dropzone";
-import { FrequencySelector } from "./FrequencySelector";
 import { ProgressBar } from "./ProgressBar";
 
 export function NewProjectForm() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [image, setImage] = useState<File | null>(null);
-  const [mode, setMode] = useState<"ai" | "simple">("ai");
-  const [title, setTitle] = useState("");
-  const [script, setScript] = useState("");
-  const [frequency, setFrequency] = useState<VisualFrequency>("minimal");
   const [busy, setBusy] = useState(false);
   const [uploadPct, setUploadPct] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
-  const scriptInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api
@@ -38,38 +31,23 @@ export function NewProjectForm() {
       .catch(() => undefined);
   }, []);
 
-  const onScriptFile = async (f: File | undefined) => {
-    if (!f) return;
-    setScript(await f.text());
-  };
-
   const submit = async () => {
     if (!file) {
       setError("Choose a narration file first.");
       return;
     }
-    if (mode === "simple" && !image) {
+    if (!image) {
       setError("Choose an image first.");
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      if (mode === "simple") {
-        const project = await api.createProject({ title: title || undefined });
-        const form = new FormData();
-        form.append("media", file);
-        await api.upload(project.id, form, setUploadPct);
-        const { job } = await api.simpleRender(project.id, image!);
-        router.push(`/projects/${project.id}?job=${job.id}`);
-        return;
-      }
-      const project = await api.createProject({ title: title || undefined, frequency, script: script || undefined });
+      const project = await api.createProject({});
       const form = new FormData();
       form.append("media", file);
-      if (script.trim()) form.append("script", script);
       await api.upload(project.id, form, setUploadPct);
-      const { job } = await api.generate(project.id, { frequency });
+      const { job } = await api.simpleRender(project.id, image);
       router.push(`/projects/${project.id}?job=${job.id}`);
     } catch (err) {
       setError((err as Error).message);
@@ -79,25 +57,6 @@ export function NewProjectForm() {
 
   return (
     <div className="space-y-6">
-      <div className="flex rounded-lg border border-zinc-800 bg-zinc-950/50 p-1">
-        <button
-          type="button"
-          className={`flex-1 rounded-md px-3 py-2 text-sm transition ${mode === "ai" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:text-zinc-200"}`}
-          onClick={() => setMode("ai")}
-          disabled={busy}
-        >
-          AI visual timeline
-        </button>
-        <button
-          type="button"
-          className={`flex-1 rounded-md px-3 py-2 text-sm transition ${mode === "simple" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:text-zinc-200"}`}
-          onClick={() => setMode("simple")}
-          disabled={busy}
-        >
-          Simple: one image + audio
-        </button>
-      </div>
-
       {warnings.map((w) => (
         <div key={w} className="rounded-md border border-amber-700/60 bg-amber-950/30 px-4 py-2 text-xs text-amber-200">
           {w}
@@ -109,77 +68,16 @@ export function NewProjectForm() {
         <Dropzone file={file} onFile={setFile} disabled={busy} />
       </div>
 
-      {mode === "simple" && (
-        <div>
-          <label className="label">Image</label>
-          <Dropzone
-            file={image}
-            onFile={setImage}
-            disabled={busy}
-            accept="image/*,.jpg,.jpeg,.png,.webp"
-            label="Drop an image here, or click to browse"
-          />
-        </div>
-      )}
-
       <div>
-        <label className="label" htmlFor="title">
-          Project title{" "}
-          <span className="normal-case text-zinc-500">
-            {mode === "simple" ? "(optional — defaults to the narration filename)" : "(optional — auto-generated after transcription)"}
-          </span>
-        </label>
-        <input
-          id="title"
-          className="input"
-          placeholder={mode === "simple" ? "Leave blank to use the narration filename" : "Leave blank to let the AI title it"}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
+        <label className="label">Image</label>
+        <Dropzone
+          file={image}
+          onFile={setImage}
           disabled={busy}
+          accept="image/*,.jpg,.jpeg,.png,.webp"
+          label="Drop an image here, or click to browse"
         />
       </div>
-
-      {mode === "ai" && <div className="card border-amber-900/40">
-        <div className="flex items-center justify-between">
-          <label className="label mb-0" htmlFor="script">
-            Script <span className="normal-case text-amber-300/90">(optional, but improves accuracy)</span>
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              ref={scriptInput}
-              type="file"
-              accept=".txt,.md,.srt,text/plain"
-              className="hidden"
-              onChange={(e) => onScriptFile(e.target.files?.[0])}
-            />
-            <button type="button" className="btn btn-ghost" onClick={() => scriptInput.current?.click()} disabled={busy}>
-              Upload .txt
-            </button>
-            {script && (
-              <button type="button" className="btn btn-ghost" onClick={() => setScript("")} disabled={busy}>
-                Clear
-              </button>
-            )}
-          </div>
-        </div>
-        <p className="mt-1 text-xs text-zinc-400">
-          If you paste the narration script, it is aligned word-by-word to the real audio so timestamps stay exact
-          and names/places are spelled correctly.
-        </p>
-        <textarea
-          id="script"
-          className="input mt-3 min-h-32 font-mono text-xs"
-          placeholder="Paste the narration script here…"
-          value={script}
-          onChange={(e) => setScript(e.target.value)}
-          disabled={busy}
-        />
-      </div>}
-
-      {mode === "ai" && <div>
-        <label className="label">Visual frequency</label>
-        <FrequencySelector value={frequency} onChange={setFrequency} disabled={busy} />
-      </div>}
 
       {error && <p className="text-sm text-red-300">{error}</p>}
 
@@ -190,8 +88,8 @@ export function NewProjectForm() {
           message={uploadPct < 1 ? `Uploading ${Math.round(uploadPct * 100)}%` : "Starting pipeline…"}
         />
       ) : (
-        <button type="button" className="btn btn-primary w-full py-3 text-base" onClick={submit} disabled={!file || (mode === "simple" && !image)}>
-          {mode === "simple" ? "Create video" : "Generate Visual Timeline"}
+        <button type="button" className="btn btn-primary w-full py-3 text-base" onClick={submit} disabled={!file || !image}>
+          Create video
         </button>
       )}
     </div>

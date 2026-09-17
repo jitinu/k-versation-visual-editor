@@ -14,6 +14,7 @@ export function TimelineEntryCard({
   onRegenerate,
   onResearch,
   onUploadImage,
+  simpleMode,
 }: {
   projectId: string;
   entry: TimelineEntry;
@@ -22,6 +23,7 @@ export function TimelineEntryCard({
   onRegenerate: () => Promise<void>;
   onResearch: (queries: string[]) => Promise<void>;
   onUploadImage: (file: File) => Promise<void>;
+  simpleMode?: boolean;
 }) {
   const [showAlts, setShowAlts] = useState(false);
   const [research, setResearch] = useState(false);
@@ -126,15 +128,19 @@ export function TimelineEntryCard({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button className="btn btn-secondary" onClick={() => setShowAlts((v) => !v)} disabled={busy || !alternatives.length}>
-              {showAlts ? "Hide" : "See"} alternatives ({alternatives.length})
-            </button>
-            <button className="btn btn-secondary" onClick={onRegenerate} disabled={busy}>
-              Regenerate
-            </button>
-            <button className="btn btn-secondary" onClick={() => setResearch((v) => !v)} disabled={busy}>
-              Re-search…
-            </button>
+            {!simpleMode && (
+              <>
+                <button className="btn btn-secondary" onClick={() => setShowAlts((v) => !v)} disabled={busy || !alternatives.length}>
+                  {showAlts ? "Hide" : "See"} alternatives ({alternatives.length})
+                </button>
+                <button className="btn btn-secondary" onClick={onRegenerate} disabled={busy}>
+                  Regenerate
+                </button>
+                <button className="btn btn-secondary" onClick={() => setResearch((v) => !v)} disabled={busy}>
+                  Re-search…
+                </button>
+              </>
+            )}
             <input
               ref={upload}
               type="file"
@@ -159,7 +165,7 @@ export function TimelineEntryCard({
             </button>
           </div>
 
-          {research && (
+          {!simpleMode && research && (
             <div className="rounded-md border border-zinc-800 p-3">
               <label className="label" htmlFor={`q-${entry.id}`}>
                 Search queries (one per line, up to 3)
@@ -188,7 +194,7 @@ export function TimelineEntryCard({
             </div>
           )}
 
-          {showAlts && (
+          {!simpleMode && showAlts && (
             <div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {alternatives.map((c) => (

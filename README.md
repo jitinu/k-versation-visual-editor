@@ -1,8 +1,8 @@
 # K-VERSATION Visual Editor
 
-Personal-use web app that turns a narration recording into a sparse, editable visual timeline and renders a 16:9 1080p MP4.
+Personal-use web app that turns narration audio plus one image into a 16:9 1080p MP4.
 
-**Flow:** upload audio (+ optional script) → transcribe & align → LLM picks a *small* set of moments worth a visual → image search (authoritative sources first) → cheap prefilter → optional vision re-rank → editable timeline → background FFmpeg render → export MP4 / transcript / SRT / timeline JSON. Projects are saved locally and can be reopened.
+**Simple flow:** upload narration audio + one image → hold the image for the full narration → background FFmpeg render → export MP4. Projects are saved locally and can be reopened.
 
 ## Requirements
 
@@ -38,11 +38,15 @@ ollama pull llava                     # vision model for image ranking (~4.7 GB)
 
 With nothing in `.env.local` the defaults are `TRANSCRIPTION_PROVIDER=local`, `LLM_PROVIDER=ollama`, `IMAGE_SEARCH_PROVIDERS=wikimedia,openverse,duckduckgo`, `VISION_RANKING_ENABLED=true`. Tunables: `LOCAL_WHISPER_MODEL` (`tiny|base|small|medium|large-v3`; `medium` is noticeably better for Korean names), `LOCAL_WHISPER_DEVICE=cuda` if you have an NVIDIA GPU, `OLLAMA_MODEL`, `OLLAMA_VISION_MODEL`, `OLLAMA_BASE_URL`, `PYTHON_PATH`.
 
-When you paste a script, it is aligned word-by-word to the audio timestamps, so the timeline uses your exact wording at the real spoken times.
+## Usage
 
 ### Simple mode
 
-For a quick single-image video, switch the home page to **Simple: one image + audio**, choose a narration file and one JPG/PNG/WebP image, then click **Create video**. The image is held for the full narration and rendered directly to an MP4 without transcription, LLM analysis, or image search.
+The home page exposes Simple mode only: choose a narration file and one JPG/PNG/WebP image, then click **Create video**. The image is held for the full narration and rendered directly to an MP4 without transcription, LLM analysis, or image search. The project editor still lets you replace the image, adjust its start/end, configure rendering, and download the MP4.
+
+### Advanced: AI visual timeline (API)
+
+The UI only exposes Simple mode, but the original AI visual-timeline pipeline remains available through its API routes. It accepts audio plus an optional script, transcribes and aligns the narration, uses an LLM to pick a *small* set of moments worth a visual, searches authoritative image sources, optionally re-ranks candidates with vision, and produces an editable timeline. When a script is supplied, it is aligned word-by-word to the audio timestamps.
 
 ### Providers / API keys
 
@@ -54,7 +58,15 @@ For a quick single-image video, switch the home page to **Simple: one image + au
 
 All provider calls are retried (`SEARCH_RETRIES`) with timeouts and never log key values.
 
-## Test with one sample file
+## Test the simple mode
+
+1. `npm run dev` and open http://localhost:3000.
+2. Drop an `.mp3/.wav/.m4a/.mp4/.mov` narration file on the audio drop zone.
+3. Drop one `.jpg/.jpeg/.png/.webp` image on the image drop zone.
+4. Click **Create video**, wait for the render job, then download the MP4 from the project editor.
+5. Return to the home page later — the project list reopens saved projects.
+
+### Advanced: AI visual timeline (API) test
 
 1. `npm run dev` and open http://localhost:3000.
 2. Drop an `.mp3/.wav/.m4a/.mp4/.mov` on the drop zone (or click it to open the OS file picker).
@@ -63,8 +75,6 @@ All provider calls are retried (`SEARCH_RETRIES`) with timeouts and never log ke
 5. Pick a visual frequency (Minimal is the default and intentionally sparse), click **Generate Visual Timeline** and watch the stages (uploading → transcribing → analyzing → searching → selecting).
 6. Review each moment: replace from alternatives, re-search with your own query, upload your own image, adjust start/end, remove, or regenerate. Global controls: regenerate all / low-confidence only, change frequency and rerun analysis, re-render.
 7. **Export Video** starts a background render job (status polled every second). Download the MP4, transcript, SRT, or timeline JSON.
-8. Return to the home page later — the project list reopens saved projects.
-
 Check `GET /api/config` (or the banner on the home page) to see which providers are active and whether Ollama / faster-whisper were detected.
 
 No sample audio? Generate one: `ffmpeg -f lavfi -i "sine=frequency=440:duration=60" -ac 1 sample.mp3` and paste any paragraph as the script (mock mode uses the script for content).

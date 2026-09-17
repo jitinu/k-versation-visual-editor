@@ -7,7 +7,7 @@ export default function HomePage() {
       <section>
         <h1 className="text-2xl font-semibold tracking-tight">New project</h1>
         <p className="mt-1 text-sm text-zinc-400">
-          Upload a narration, optionally add the script, and generate a sparse visual timeline.
+          Upload narration audio and one image to create an MP4 with that image held for the full narration.
         </p>
         <div className="mt-6">
           <NewProjectForm />

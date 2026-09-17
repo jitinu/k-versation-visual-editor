@@ -105,6 +105,7 @@ export function ProjectEditor({ projectId, initialJobId }: { projectId: string; 
   if (!project) return <p className="text-sm text-zinc-500">{error ?? "Loading project…"}</p>;
 
   const transcript = project.alignedTranscript ?? project.transcript;
+  const hasTranscript = Boolean(project.transcript || project.alignedTranscript);
   const active = project.timeline.filter((t) => !t.removed);
   const withImage = active.filter((t) => t.chosenCandidateId);
   const lowConf = active.filter((t) => t.status !== "manual" && (t.status === "skipped" || t.confidence < 0.6));
@@ -160,29 +161,33 @@ export function ProjectEditor({ projectId, initialJobId }: { projectId: string; 
                   {withImage.length} visuals · {active.length - withImage.length} skipped
                 </span>
               </h2>
-              <div className="flex flex-wrap gap-2">
-                <button className="btn btn-secondary" disabled={busy} onClick={() => regenerate({ all: true })}>
-                  Regenerate all images
-                </button>
-                <button className="btn btn-secondary" disabled={busy || !lowConf.length} onClick={() => regenerate({ lowConfidenceBelow: 0.6 })}>
-                  Regenerate low-confidence ({lowConf.length})
-                </button>
-                <button className="btn btn-secondary" disabled={busy} onClick={() => generate({ skipTranscription: true, frequency })}>
-                  Re-select moments
-                </button>
+              {hasTranscript && (
+                <div className="flex flex-wrap gap-2">
+                  <button className="btn btn-secondary" disabled={busy} onClick={() => regenerate({ all: true })}>
+                    Regenerate all images
+                  </button>
+                  <button className="btn btn-secondary" disabled={busy || !lowConf.length} onClick={() => regenerate({ lowConfidenceBelow: 0.6 })}>
+                    Regenerate low-confidence ({lowConf.length})
+                  </button>
+                  <button className="btn btn-secondary" disabled={busy} onClick={() => generate({ skipTranscription: true, frequency })}>
+                    Re-select moments
+                  </button>
+                </div>
+              )}
+            </div>
+            {hasTranscript && (
+              <div>
+                <label className="label">Visual frequency (change + rerun analysis, transcript is kept)</label>
+                <FrequencySelector
+                  value={frequency}
+                  disabled={busy}
+                  onChange={(f) => {
+                    setFrequency(f);
+                    void generate({ frequency: f, skipTranscription: true });
+                  }}
+                />
               </div>
-            </div>
-            <div>
-              <label className="label">Visual frequency (change + rerun analysis, transcript is kept)</label>
-              <FrequencySelector
-                value={frequency}
-                disabled={busy}
-                onChange={(f) => {
-                  setFrequency(f);
-                  void generate({ frequency: f, skipTranscription: true });
-                }}
-              />
-            </div>
+            )}
           </section>
 
           <section className="space-y-4">
@@ -199,6 +204,7 @@ export function ProjectEditor({ projectId, initialJobId }: { projectId: string; 
                 onRegenerate={() => regenerate({ entryIds: [entry.id] })}
                 onResearch={(queries) => regenerate({ entryIds: [entry.id], queries })}
                 onUploadImage={(file) => run(async () => setProject(await api.uploadEntryImage(projectId, entry.id, file)))}
+                simpleMode={!hasTranscript}
               />
             ))}
           </section>
