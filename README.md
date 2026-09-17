@@ -40,6 +40,10 @@ With nothing in `.env.local` the defaults are `TRANSCRIPTION_PROVIDER=local`, `L
 
 When you paste a script, it is aligned word-by-word to the audio timestamps, so the timeline uses your exact wording at the real spoken times.
 
+### Simple mode
+
+For a quick single-image video, switch the home page to **Simple: one image + audio**, choose a narration file and one JPG/PNG/WebP image, then click **Create video**. The image is held for the full narration and rendered directly to an MP4 without transcription, LLM analysis, or image search.
+
 ### Providers / API keys
 
 | Purpose | Env var | Notes |

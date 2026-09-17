@@ -12,10 +12,14 @@ export function Dropzone({
   file,
   onFile,
   disabled,
+  accept = ACCEPT_MEDIA,
+  label = "Drop narration audio here, or click to browse",
 }: {
   file: File | null;
   onFile: (f: File | null) => void;
   disabled?: boolean;
+  accept?: string;
+  label?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
@@ -29,7 +33,7 @@ export function Dropzone({
     <div
       role="button"
       tabIndex={0}
-      aria-label="Upload narration audio or video"
+      aria-label={label}
       onClick={() => !disabled && inputRef.current?.click()}
       onKeyDown={(e) => {
         if ((e.key === "Enter" || e.key === " ") && !disabled) {
@@ -54,7 +58,7 @@ export function Dropzone({
       <input
         ref={inputRef}
         type="file"
-        accept={ACCEPT_MEDIA}
+        accept={accept}
         className="hidden"
         data-testid="media-input"
         onChange={(e) => {
@@ -69,8 +73,10 @@ export function Dropzone({
         </>
       ) : (
         <>
-          <div className="text-sm font-medium text-zinc-100">Drop narration audio here, or click to browse</div>
-          <div className="mt-1 text-xs text-zinc-400">mp3 · wav · m4a · mp4 · mov — up to 1 GB</div>
+          <div className="text-sm font-medium text-zinc-100">{label}</div>
+          <div className="mt-1 text-xs text-zinc-400">
+            {accept.startsWith("image/") ? "jpg · jpeg · png · webp" : "mp3 · wav · m4a · mp4 · mov — up to 1 GB"}
+          </div>
         </>
       )}
     </div>

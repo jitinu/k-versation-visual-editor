@@ -46,6 +46,11 @@ export const api = {
     body: { entryIds?: string[]; all?: boolean; lowConfidenceBelow?: number; queries?: string[] },
   ) => request<{ job: JobState }>(`/api/projects/${id}/regenerate`, jsonInit("POST", body)),
   render: (id: string) => request<{ job: JobState }>(`/api/projects/${id}/render`, { method: "POST" }),
+  simpleRender: (id: string, image: File) => {
+    const form = new FormData();
+    form.append("image", image);
+    return request<{ project: Project; job: JobState }>(`/api/projects/${id}/simple`, { method: "POST", body: form });
+  },
   job: (jobId: string) => request<JobState>(`/api/jobs/${jobId}`),
   patchEntry: (id: string, entryId: string, body: Record<string, unknown>) =>
     request<Project>(`/api/projects/${id}/entries/${entryId}`, jsonInit("PATCH", body)),

@@ -45,7 +45,11 @@ export function ProjectEditor({ projectId, initialJobId }: { projectId: string; 
   useEffect(() => {
     refresh()
       .then((p) => {
-        if (initialJobId) api.job(initialJobId).then((j) => watch(j, setJob)).catch(() => undefined);
+        if (initialJobId)
+          api
+            .job(initialJobId)
+            .then((j) => watch(j, j.type === "render" ? setRenderJob : setJob))
+            .catch(() => undefined);
         else if (p.lastJobId)
           api
             .job(p.lastJobId)
