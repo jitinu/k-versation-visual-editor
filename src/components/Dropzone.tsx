@@ -14,19 +14,26 @@ export function Dropzone({
   disabled,
   accept = ACCEPT_MEDIA,
   label = "Drop narration audio here, or click to browse",
+  onError,
 }: {
   file: File | null;
   onFile: (f: File | null) => void;
   disabled?: boolean;
   accept?: string;
   label?: string;
+  onError?: (message: string) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
 
   const pick = (list: FileList | null) => {
     const f = list?.[0];
-    if (f) onFile(f);
+    if (!f) return;
+    if (accept.startsWith("image/") && !f.type.startsWith("image/")) {
+      onError?.("Only image files are accepted");
+      return;
+    }
+    onFile(f);
   };
 
   return (

@@ -8,8 +8,6 @@ import { FrequencySelector } from "./FrequencySelector";
 import { ProgressBar } from "./ProgressBar";
 import { TimelineEntryCard } from "./TimelineEntryCard";
 
-const RENDER_STAGES = [{ key: "rendering" as const, label: "Rendering MP4" }];
-
 export function ProjectEditor({ projectId, initialJobId }: { projectId: string; initialJobId?: string }) {
   const [project, setProject] = useState<Project | null>(null);
   const [job, setJob] = useState<JobState | null>(null);
@@ -222,15 +220,17 @@ export function ProjectEditor({ projectId, initialJobId }: { projectId: string; 
                   />
                   Ken Burns on all
                 </label>
-                <label className="flex items-center gap-1">
-                  <input
-                    type="checkbox"
-                    checked={project.renderSettings.burnSubtitles}
-                    disabled={rendering}
-                    onChange={(e) => run(async () => setProject(await api.patchProject(projectId, { renderSettings: { burnSubtitles: e.target.checked } })))}
-                  />
-                  Burn subtitles
-                </label>
+                {hasTranscript && (
+                  <label className="flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      checked={project.renderSettings.burnSubtitles}
+                      disabled={rendering}
+                      onChange={(e) => run(async () => setProject(await api.patchProject(projectId, { renderSettings: { burnSubtitles: e.target.checked } })))}
+                    />
+                    Burn subtitles
+                  </label>
+                )}
                 <span className="text-zinc-500">
                   {project.renderSettings.width}×{project.renderSettings.height}
                 </span>
@@ -245,18 +245,28 @@ export function ProjectEditor({ projectId, initialJobId }: { projectId: string; 
                   Download MP4
                 </a>
               )}
-              <a className="btn btn-secondary" href={dl("transcript")}>
-                Download Transcript
-              </a>
-              <a className="btn btn-secondary" href={dl("srt")}>
-                Download SRT
-              </a>
+              {hasTranscript && (
+                <>
+                  <a className="btn btn-secondary" href={dl("transcript")}>
+                    Download Transcript
+                  </a>
+                  <a className="btn btn-secondary" href={dl("srt")}>
+                    Download SRT
+                  </a>
+                </>
+              )}
               <a className="btn btn-secondary" href={dl("timeline")}>
                 Download Timeline JSON
               </a>
             </div>
             {renderJob && renderJob.stage !== "done" && (
-              <ProgressBar stage={renderJob.stage} progress={renderJob.progress} message={renderJob.message} error={renderJob.error} stages={RENDER_STAGES} />
+              <ProgressBar
+                stage={renderJob.stage}
+                progress={renderJob.progress}
+                message={renderJob.message}
+                error={renderJob.error}
+                stages={hasTranscript ? ["rendering"] : ["uploading", "rendering", "done"]}
+              />
             )}
             {project.renderStatus === "error" && project.renderError && <p className="text-sm text-red-300">{project.renderError}</p>}
             {project.renderStatus === "done" && project.outputVideoPath && (

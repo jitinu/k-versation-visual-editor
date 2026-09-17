@@ -40,6 +40,10 @@ export function NewProjectForm() {
       setError("Choose an image first.");
       return;
     }
+    if (!image.type.startsWith("image/")) {
+      setError("Only image files are accepted");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -72,10 +76,14 @@ export function NewProjectForm() {
         <label className="label">Image</label>
         <Dropzone
           file={image}
-          onFile={setImage}
+          onFile={(f) => {
+            setImage(f);
+            if (f) setError(null);
+          }}
           disabled={busy}
           accept="image/*,.jpg,.jpeg,.png,.webp"
           label="Drop an image here, or click to browse"
+          onError={setError}
         />
       </div>
 
@@ -86,6 +94,7 @@ export function NewProjectForm() {
           stage="uploading"
           progress={uploadPct * 100}
           message={uploadPct < 1 ? `Uploading ${Math.round(uploadPct * 100)}%` : "Starting pipeline…"}
+          stages={["uploading", "rendering", "done"]}
         />
       ) : (
         <button type="button" className="btn btn-primary w-full py-3 text-base" onClick={submit} disabled={!file || !image}>

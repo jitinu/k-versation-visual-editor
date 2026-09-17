@@ -1,13 +1,17 @@
 import type { JobStage } from "@/lib/types";
 
-const STAGES: Array<{ key: JobStage; label: string }> = [
-  { key: "uploading", label: "Uploading" },
-  { key: "transcribing", label: "Transcribing" },
-  { key: "analyzing", label: "Analyzing" },
-  { key: "searching", label: "Searching" },
-  { key: "selecting", label: "Selecting" },
-  { key: "rendering", label: "Rendering" },
-];
+const STAGES: JobStage[] = ["uploading", "transcribing", "analyzing", "searching", "selecting", "rendering"];
+const LABELS: Record<JobStage, string> = {
+  queued: "Queued",
+  uploading: "Uploading",
+  transcribing: "Transcribing",
+  analyzing: "Analyzing",
+  searching: "Searching",
+  selecting: "Selecting",
+  rendering: "Rendering",
+  done: "Done",
+  error: "Error",
+};
 
 export function ProgressBar({
   stage,
@@ -20,15 +24,15 @@ export function ProgressBar({
   progress: number;
   message?: string;
   error?: string;
-  stages?: Array<{ key: JobStage; label: string }>;
+  stages?: JobStage[];
 }) {
-  const idx = stages.findIndex((s) => s.key === stage);
+  const idx = stages.indexOf(stage);
   return (
     <div className="space-y-2" aria-live="polite">
       <div className="flex flex-wrap gap-2 text-xs">
         {stages.map((s, i) => (
           <span
-            key={s.key}
+            key={s}
             className={`badge ${
               i < idx || stage === "done"
                 ? "border-emerald-700 text-emerald-300"
@@ -37,7 +41,7 @@ export function ProgressBar({
                   : "border-zinc-700 text-zinc-500"
             }`}
           >
-            {s.label}
+            {LABELS[s]}
           </span>
         ))}
       </div>
