@@ -7,7 +7,7 @@ export default function HomePage() {
       <section>
         <h1 className="text-2xl font-semibold tracking-tight">New project</h1>
         <p className="mt-1 text-sm text-zinc-400">
-          Upload narration audio and one image to create an MP4 with that image held for the full narration.
+          Upload narration audio, several images, and a cue list to place each image exactly where you want it in the MP4.
         </p>
         <div className="mt-6">
           <NewProjectForm />

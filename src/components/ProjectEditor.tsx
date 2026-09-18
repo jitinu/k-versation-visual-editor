@@ -46,7 +46,7 @@ export function ProjectEditor({ projectId, initialJobId }: { projectId: string; 
         if (initialJobId)
           api
             .job(initialJobId)
-            .then((j) => watch(j, j.type === "render" ? setRenderJob : setJob))
+            .then((j) => watch(j, j.type === "render" || j.type === "manual" ? setRenderJob : setJob))
             .catch(() => undefined);
         else if (p.lastJobId)
           api
@@ -149,7 +149,7 @@ export function ProjectEditor({ projectId, initialJobId }: { projectId: string; 
         {error && <p className="text-sm text-red-300">{error}</p>}
       </section>
 
-      {project.timeline.length > 0 || transcript ? (
+      {project.timeline.length > 0 || transcript || project.manualImages?.length ? (
         <>
           <section className="card space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -202,7 +202,7 @@ export function ProjectEditor({ projectId, initialJobId }: { projectId: string; 
                 onRegenerate={() => regenerate({ entryIds: [entry.id] })}
                 onResearch={(queries) => regenerate({ entryIds: [entry.id], queries })}
                 onUploadImage={(file) => run(async () => setProject(await api.uploadEntryImage(projectId, entry.id, file)))}
-                simpleMode={!hasTranscript}
+                manualMode={Boolean(project.manualImages?.length)}
               />
             ))}
           </section>
@@ -265,7 +265,13 @@ export function ProjectEditor({ projectId, initialJobId }: { projectId: string; 
                 progress={renderJob.progress}
                 message={renderJob.message}
                 error={renderJob.error}
-                stages={hasTranscript ? ["rendering"] : ["uploading", "rendering", "done"]}
+                stages={
+                  project.manualImages?.length
+                    ? hasTranscript
+                      ? ["uploading", "transcribing", "rendering", "done"]
+                      : ["uploading", "rendering", "done"]
+                    : ["rendering"]
+                }
               />
             )}
             {project.renderStatus === "error" && project.renderError && <p className="text-sm text-red-300">{project.renderError}</p>}
