@@ -1,6 +1,8 @@
 # K-VERSATION Visual Editor
 
-Personal-use web app that turns narration audio, uploaded images, and a cue list into a 16:9 1080p MP4.
+Personal-use web app that turns narration audio plus one image into a 16:9 1080p MP4.
+
+**Simple flow:** upload narration audio + one image → hold the image for the full narration → background FFmpeg render → export MP4. Projects are saved locally and can be reopened.
 
 ## Requirements
 
@@ -38,24 +40,13 @@ With nothing in `.env.local` the defaults are `TRANSCRIPTION_PROVIDER=local`, `L
 
 ## Usage
 
-### Manual timeline
+### Simple mode
 
-The home page exposes Manual timeline mode: upload narration audio, one or more JPG/PNG/WebP images, optionally paste the script, and enter one cue per line. Timestamp cues place an image at an exact time; phrase cues use local Whisper transcription plus script alignment to find the matching narration words. With one image and no cues, it is held for the full narration. The project editor lets you replace images, adjust timing, configure rendering, and download the MP4.
-
-| Cue form | Example |
-| --- | --- |
-| Timestamp range | `0:12-0:20 kimchi.jpg` |
-| Start plus duration | `0:12 kimchi.jpg 8s` |
-| Start until next cue/end | `0:12 kimchi.jpg` or `1:05-end market.png` |
-| Phrase start | `"Gwangjang Market" market.png 6s` |
-| Phrase-to-phrase range | `"Gwangjang Market" .. "kimchi stew" market.png` |
-| Image references | `market.png`, `market`, `1`, or `#3` |
-
-Blank lines and lines beginning with `#` are ignored. Phrase cues require a script or an existing transcript.
+The home page exposes Simple mode only: choose a narration file and one JPG/PNG/WebP image, then click **Create video**. The image is held for the full narration and rendered directly to an MP4 without transcription, LLM analysis, or image search. The project editor still lets you replace the image, adjust its start/end, configure rendering, and download the MP4.
 
 ### Advanced: AI visual timeline (API)
 
-The UI only exposes Manual timeline mode. The original AI visual-timeline pipeline remains available through its API routes: it accepts audio plus an optional script, transcribes and aligns the narration, uses an LLM to pick a *small* set of moments worth a visual, searches authoritative image sources, optionally re-ranks candidates with vision, and produces an editable timeline. When a script is supplied, it is aligned word-by-word to the audio timestamps.
+The UI only exposes Simple mode, but the original AI visual-timeline pipeline remains available through its API routes. It accepts audio plus an optional script, transcribes and aligns the narration, uses an LLM to pick a *small* set of moments worth a visual, searches authoritative image sources, optionally re-ranks candidates with vision, and produces an editable timeline. When a script is supplied, it is aligned word-by-word to the audio timestamps.
 
 ### Providers / API keys
 
@@ -67,14 +58,13 @@ The UI only exposes Manual timeline mode. The original AI visual-timeline pipeli
 
 All provider calls are retried (`SEARCH_RETRIES`) with timeouts and never log key values.
 
-## Test Manual timeline mode
+## Test the simple mode
 
 1. `npm run dev` and open http://localhost:3000.
 2. Drop an `.mp3/.wav/.m4a/.mp4/.mov` narration file on the audio drop zone.
-3. Drop one or more `.jpg/.jpeg/.png/.webp` images on the image picker.
-4. Paste cues such as `0:00-0:05 1` and `0:05-end 2`, or leave cues blank with one image.
-5. Click **Create video**, wait for the render job, then download the MP4 from the project editor.
-6. Return to the home page later — the project list reopens saved projects.
+3. Drop one `.jpg/.jpeg/.png/.webp` image on the image drop zone.
+4. Click **Create video**, wait for the render job, then download the MP4 from the project editor.
+5. Return to the home page later — the project list reopens saved projects.
 
 ### Advanced: AI visual timeline (API) test
 

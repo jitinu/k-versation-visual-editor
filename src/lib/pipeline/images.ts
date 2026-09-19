@@ -143,7 +143,7 @@ export async function saveUploadedImage(
   buf: Buffer,
   originalName: string,
 ): Promise<ImageCandidate> {
-  const id = `img_manual_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const id = `img_manual_${Date.now().toString(36)}`;
   const rel = path.join("images", entryId, `${id}.jpg`);
   const abs = resolveInProject(projectId, rel);
   await ensureDir(path.dirname(abs));

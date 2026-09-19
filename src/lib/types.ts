@@ -101,7 +101,7 @@ export type JobStage =
 
 export interface JobState {
   id: string;
-  type: "generate" | "render" | "regenerate" | "manual";
+  type: "generate" | "render" | "regenerate";
   projectId: string;
   stage: JobStage;
   progress: number;
@@ -129,8 +129,6 @@ export interface Project {
   mediaOriginalName?: string;
   mediaDuration?: number;
   script?: string;
-  manualImages?: ImageCandidate[];
-  cueText?: string;
   frequency: VisualFrequency;
   transcript?: Transcript;
   alignedTranscript?: Transcript;

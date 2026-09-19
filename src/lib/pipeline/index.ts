@@ -6,7 +6,6 @@ import { ensureDir, resolveInProject } from "../storage/files";
 import type { CandidateMoment, JobState, Project, TimelineEntry, VisualFrequency } from "../types";
 import { alignScriptToTranscript } from "./align";
 import { analyzeMoments } from "./analyze";
-import { parseCues, resolveCues } from "./cues";
 import { downloadAndPrefilter } from "./images";
 import { rankCandidates } from "./rank";
 import { buildRenderPlan, runFfmpeg } from "./render";
@@ -139,99 +138,33 @@ export function startRegenerateJob(
   });
 }
 
-export async function renderProject(projectId: string, ctx: JobContext): Promise<void> {
-  const project = await requireProject(projectId);
-  await updateProject(projectId, (p) => {
-    p.renderStatus = "rendering";
-    p.renderError = undefined;
-  });
-  await ctx.update("rendering", 2, "Preparing render…");
-  await ensureDir(resolveInProject(projectId, "renders"));
-  const plan = await buildRenderPlan(project, project.renderSettings);
-  try {
-    await runFfmpeg(plan, (f) => void ctx.update("rendering", 2 + f * 96, `Encoding ${Math.round(f * 100)}%`));
-  } catch (err) {
-    await updateProject(projectId, (p) => {
-      p.renderStatus = "error";
-      p.renderError = (err as Error).message;
-    });
-    throw err;
-  }
-  await updateProject(projectId, (p) => {
-    p.renderStatus = "done";
-    p.outputVideoPath = plan.outputRel;
-  });
-}
-
 export function startRenderJob(projectId: string): JobState {
-  const job = startJob("render", projectId, (ctx) => renderProject(projectId, ctx));
-  void updateProject(projectId, (p) => {
-    p.renderStatus = "queued";
-    p.renderJobId = job.id;
-  });
-  return job;
-}
-
-export function startManualJob(projectId: string, opts: { cues: string; script?: string }): JobState {
-  const job = startJob("manual", projectId, async (ctx) => {
-    let project = await requireProject(projectId);
-    if (!project.mediaPath || !project.mediaDuration) throw new Error("Upload an audio/video file first");
-    const mediaDuration = project.mediaDuration;
-    const cues = parseCues(opts.cues);
-    const hasPhraseCues = cues.some((cue) => cue.kind === "phrase");
-    const suppliedScript = opts.script?.trim() || undefined;
-    const scriptChanged = suppliedScript !== undefined && suppliedScript !== (project.alignedTranscript?.text ?? "");
-    if (hasPhraseCues && (!project.transcript || scriptChanged)) {
-      await ctx.update("transcribing", 5, "Transcribing narration…");
-      const tmp = resolveInProject(projectId, "media");
-      await ensureDir(tmp);
-      const asr = await transcribe(resolveInProject(projectId, project.mediaPath), tmp, suppliedScript);
-      const aligned = suppliedScript ? alignScriptToTranscript(suppliedScript, asr) : undefined;
-      await ctx.update("transcribing", 25, aligned ? "Aligning script to audio…" : "Transcript ready");
-      project = await updateProject(projectId, (p) => {
-        p.transcript = asr;
-        p.alignedTranscript = aligned;
-        if (suppliedScript !== undefined) p.script = suppliedScript;
-        if (!p.mediaDuration) p.mediaDuration = asr.duration;
-      });
-    }
-    const transcript = project.alignedTranscript ?? project.transcript;
-    const resolved = resolveCues(cues, (project.manualImages ?? []).map((image) => image.title), mediaDuration, transcript);
-    const imageByName = new Map((project.manualImages ?? []).map((image) => [image.title, image]));
-    const entries: TimelineEntry[] = resolved.map((cue) => {
-      const image = imageByName.get(cue.image);
-      if (!image) throw new Error(`Line ${cue.line}: image "${cue.image}" was not uploaded`);
-      const sourceCue = cues.find((candidate) => candidate.line === cue.line);
-      return {
-        id: `manual_${cue.line}_${Math.random().toString(36).slice(2, 8)}`,
-        start: cue.start,
-        end: cue.end,
-        excerpt: sourceCue?.kind === "phrase" ? sourceCue.phrase : "",
-        reason: `Manual cue (line ${cue.line})`,
-        visualType: "photo",
-        priority: 1,
-        confidence: 1,
-        status: "manual",
-        searchQueries: [],
-        chosenCandidateId: image.id,
-        candidates: [image],
-      };
-    });
+  const job = startJob("render", projectId, async (ctx: JobContext) => {
+    const project = await requireProject(projectId);
     await updateProject(projectId, (p) => {
-      p.timeline = entries;
-      p.renderStatus = "idle";
-      p.outputVideoPath = undefined;
-      p.lastJobId = ctx.job.id;
-      if ((!p.title || p.title === "Untitled project") && p.mediaOriginalName) {
-        p.title = path.basename(p.mediaOriginalName, path.extname(p.mediaOriginalName));
-      }
+      p.renderStatus = "rendering";
+      p.renderError = undefined;
     });
-    await renderProject(projectId, ctx);
+    await ctx.update("rendering", 2, "Preparing render…");
+    await ensureDir(resolveInProject(projectId, "renders"));
+    const plan = await buildRenderPlan(project, project.renderSettings);
+    try {
+      await runFfmpeg(plan, (f) => void ctx.update("rendering", 2 + f * 96, `Encoding ${Math.round(f * 100)}%`));
+    } catch (err) {
+      await updateProject(projectId, (p) => {
+        p.renderStatus = "error";
+        p.renderError = (err as Error).message;
+      });
+      throw err;
+    }
+    await updateProject(projectId, (p) => {
+      p.renderStatus = "done";
+      p.outputVideoPath = plan.outputRel;
+    });
   });
   void updateProject(projectId, (p) => {
     p.renderStatus = "queued";
     p.renderJobId = job.id;
-    p.lastJobId = job.id;
   });
   return job;
 }

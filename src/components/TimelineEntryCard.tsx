@@ -14,7 +14,7 @@ export function TimelineEntryCard({
   onRegenerate,
   onResearch,
   onUploadImage,
-  manualMode,
+  simpleMode,
 }: {
   projectId: string;
   entry: TimelineEntry;
@@ -23,7 +23,7 @@ export function TimelineEntryCard({
   onRegenerate: () => Promise<void>;
   onResearch: (queries: string[]) => Promise<void>;
   onUploadImage: (file: File) => Promise<void>;
-  manualMode?: boolean;
+  simpleMode?: boolean;
 }) {
   const [showAlts, setShowAlts] = useState(false);
   const [research, setResearch] = useState(false);
@@ -128,7 +128,7 @@ export function TimelineEntryCard({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {!manualMode && (
+            {!simpleMode && (
               <>
                 <button className="btn btn-secondary" onClick={() => setShowAlts((v) => !v)} disabled={busy || !alternatives.length}>
                   {showAlts ? "Hide" : "See"} alternatives ({alternatives.length})
@@ -165,7 +165,7 @@ export function TimelineEntryCard({
             </button>
           </div>
 
-          {!manualMode && research && (
+          {!simpleMode && research && (
             <div className="rounded-md border border-zinc-800 p-3">
               <label className="label" htmlFor={`q-${entry.id}`}>
                 Search queries (one per line, up to 3)
@@ -194,7 +194,7 @@ export function TimelineEntryCard({
             </div>
           )}
 
-          {!manualMode && showAlts && (
+          {!simpleMode && showAlts && (
             <div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {alternatives.map((c) => (
