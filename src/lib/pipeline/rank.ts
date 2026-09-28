@@ -77,6 +77,10 @@ export async function rankCandidates(
   if (useVision) {
     try {
       const scores = await visionScore(projectId, moment, shortlist);
+      if (scores.size === 0) {
+        log.warn("vision model returned no scores; falling back to prefilter ordering");
+        useVision = false;
+      }
       for (const c of shortlist) {
         const s = scores.get(c.id);
         if (!s) continue;
@@ -118,6 +122,6 @@ export async function rankCandidates(
 }
 
 function finalScore(c: ImageCandidate, useVision: boolean): number {
-  if (useVision && c.visionScore !== undefined) return 0.75 * c.visionScore + 0.25 * (c.prefilterScore ?? 0);
-  return c.prefilterScore ?? 0;
+  if (!useVision) return c.prefilterScore ?? 0;
+  return 0.75 * (c.visionScore ?? 0) + 0.25 * (c.prefilterScore ?? 0);
 }
