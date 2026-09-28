@@ -42,7 +42,7 @@ With nothing in `.env.local` the defaults are `TRANSCRIPTION_PROVIDER=local`, `L
 
 ### Simple mode
 
-The home page exposes Simple mode only: choose a narration file and optionally one JPG/PNG/WebP image, then click **Create video**. If you leave the image empty, the app searches Wikimedia, Openverse, and DuckDuckGo using a cleaned version of the audio filename, and llava ranks the downloaded candidates when Ollama is running. The best image is held for the full narration, with alternatives available in the editor. An uploaded image still renders directly without transcription, LLM analysis, or image search. The project editor lets you replace the image, adjust its start/end, configure rendering, and download the MP4.
+The home page exposes Simple mode only: choose a narration file and one JPG/PNG/WebP image, then click **Create video**. The image is held for the full narration and rendered directly to an MP4 without transcription, LLM analysis, or image search. The project editor still lets you replace the image, adjust its start/end, configure rendering, and download the MP4.
 
 ### Advanced: AI visual timeline (API)
 
@@ -62,8 +62,8 @@ All provider calls are retried (`SEARCH_RETRIES`) with timeouts and never log ke
 
 1. `npm run dev` and open http://localhost:3000.
 2. Drop an `.mp3/.wav/.m4a/.mp4/.mov` narration file on the audio drop zone.
-3. Optionally drop one `.jpg/.jpeg/.png/.webp` image on the image drop zone. Leave it empty to search by the audio filename.
-4. Click **Create video**, wait for the search/rank/render job, then download the MP4 from the project editor.
+3. Drop one `.jpg/.jpeg/.png/.webp` image on the image drop zone.
+4. Click **Create video**, wait for the render job, then download the MP4 from the project editor.
 5. Return to the home page later — the project list reopens saved projects.
 
 ### Advanced: AI visual timeline (API) test

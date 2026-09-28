@@ -13,7 +13,6 @@ import { searchCandidates } from "./search";
 import { entryFromMoment, normalizeTimeline } from "./timeline";
 import { generateTitle } from "./title";
 import { transcribe } from "./transcribe";
-import { mediaQueryFromFilename } from "../query";
 
 const log = createLogger("pipeline");
 
@@ -139,102 +138,35 @@ export function startRegenerateJob(
   });
 }
 
-export async function renderProject(projectId: string, ctx: JobContext): Promise<void> {
-  const project = await requireProject(projectId);
-  await updateProject(projectId, (p) => {
-    p.renderStatus = "rendering";
-    p.renderError = undefined;
-  });
-  await ctx.update("rendering", 2, "Preparing render…");
-  await ensureDir(resolveInProject(projectId, "renders"));
-  const plan = await buildRenderPlan(project, project.renderSettings);
-  try {
-    await runFfmpeg(plan, (f) => void ctx.update("rendering", 2 + f * 96, `Encoding ${Math.round(f * 100)}%`));
-  } catch (err) {
-    await updateProject(projectId, (p) => {
-      p.renderStatus = "error";
-      p.renderError = (err as Error).message;
-    });
-    throw err;
-  }
-  await updateProject(projectId, (p) => {
-    p.renderStatus = "done";
-    p.outputVideoPath = plan.outputRel;
-  });
-}
-
 export function startRenderJob(projectId: string): JobState {
-  const job = startJob("render", projectId, (ctx) => renderProject(projectId, ctx));
+  const job = startJob("render", projectId, async (ctx: JobContext) => {
+    const project = await requireProject(projectId);
+    await updateProject(projectId, (p) => {
+      p.renderStatus = "rendering";
+      p.renderError = undefined;
+    });
+    await ctx.update("rendering", 2, "Preparing render…");
+    await ensureDir(resolveInProject(projectId, "renders"));
+    const plan = await buildRenderPlan(project, project.renderSettings);
+    try {
+      await runFfmpeg(plan, (f) => void ctx.update("rendering", 2 + f * 96, `Encoding ${Math.round(f * 100)}%`));
+    } catch (err) {
+      await updateProject(projectId, (p) => {
+        p.renderStatus = "error";
+        p.renderError = (err as Error).message;
+      });
+      throw err;
+    }
+    await updateProject(projectId, (p) => {
+      p.renderStatus = "done";
+      p.outputVideoPath = plan.outputRel;
+    });
+  });
   void updateProject(projectId, (p) => {
     p.renderStatus = "queued";
     p.renderJobId = job.id;
   });
   return job;
-}
-
-export function startAutoImageJob(projectId: string): JobState {
-  return startJob("auto", projectId, async (ctx) => {
-    const project = await requireProject(projectId);
-    if (!project.mediaPath || !project.mediaDuration) throw new Error("Upload an audio/video file first");
-    const query = mediaQueryFromFilename(project.mediaOriginalName ?? project.mediaPath);
-    if (!query) throw new Error("Could not determine an image search query from the audio filename");
-
-    await ctx.update("searching", 10, `Searching images for “${query}”…`);
-    const moment: CandidateMoment = {
-      start_time: 0,
-      end_time: project.mediaDuration,
-      transcript_excerpt: query,
-      visual_priority_score: 1,
-      why_visual_is_helpful: "Title image for the whole video",
-      search_query_1: query,
-      search_query_2: `${query} photo`,
-      search_query_3: `${query} high resolution`,
-      suggested_visual_type: "photo",
-    };
-    const { candidates } = await searchCandidates(moment);
-    if (!candidates.length) throw new Error(`No images found for “${query}” — upload an image instead`);
-    const downloaded = await downloadAndPrefilter(projectId, "auto", candidates);
-    const large = downloaded.filter((c) => !c.rejected && c.localPath && (c.width ?? 0) * (c.height ?? 0) >= 1280 * 720);
-    const preferred = large.length >= 3 ? downloaded.filter((c) => large.includes(c) || c.rejected) : downloaded;
-
-    await ctx.update("selecting", 60, `Selecting the best image for “${query}”…`);
-    const ranked = await rankCandidates(projectId, moment, preferred);
-    const rankedCandidates = [
-      ...ranked.candidates,
-      ...downloaded.filter((c) => !ranked.candidates.some((rankedCandidate) => rankedCandidate.id === c.id)),
-    ];
-    const viable = rankedCandidates
-      .filter((c) => !c.rejected && c.localPath)
-      .sort((a, b) => (b.prefilterScore ?? 0) - (a.prefilterScore ?? 0));
-    const chosen = ranked.chosenId ? ranked.chosenId : viable[0]?.id;
-    if (!chosen) throw new Error(`No images found for “${query}” — upload an image instead`);
-    const confidence = ranked.chosenId ? ranked.confidence : 0.3;
-    const selected = rankedCandidates.find((c) => c.id === chosen);
-    const updated = await updateProject(projectId, (p) => {
-      p.timeline = [{
-        id: "auto",
-        start: 0,
-        end: p.mediaDuration!,
-        excerpt: query,
-        reason: selected?.visionReason || `Best match for “${query}”`,
-        visualType: "photo",
-        priority: 1,
-        confidence,
-        status: "ok",
-        searchQueries: [query, `${query} photo`, `${query} high resolution`],
-        chosenCandidateId: chosen,
-        candidates: rankedCandidates,
-      }];
-      p.renderStatus = "idle";
-      p.outputVideoPath = undefined;
-      p.lastJobId = ctx.job.id;
-      if ((!p.title || p.title === "Untitled project") && p.mediaOriginalName) {
-        p.title = path.basename(p.mediaOriginalName, path.extname(p.mediaOriginalName));
-      }
-    });
-    log.info(`auto image selected for ${updated.id}`, { query, chosen, alternatives: Math.max(0, rankedCandidates.length - 1) });
-    await renderProject(projectId, ctx);
-  });
 }
 
 export function outputVideoAbsPath(project: Project): string | null {
