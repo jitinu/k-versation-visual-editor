@@ -36,6 +36,8 @@ export function TimelineEntryCard({
   const alternatives = entry.candidates.filter((c) => c.id !== entry.chosenCandidateId && !c.rejected && c.localPath);
   const rejected = entry.candidates.filter((c) => c.rejected);
   const lowConfidence = entry.status !== "manual" && entry.confidence < 0.6;
+  const autoMode = entry.id === "auto" || entry.candidates.length > 1;
+  const showSearchControls = !simpleMode || autoMode;
 
   const commitTimes = async () => {
     const s = parseFloat(start);
@@ -128,7 +130,7 @@ export function TimelineEntryCard({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {!simpleMode && (
+            {showSearchControls && (
               <>
                 <button className="btn btn-secondary" onClick={() => setShowAlts((v) => !v)} disabled={busy || !alternatives.length}>
                   {showAlts ? "Hide" : "See"} alternatives ({alternatives.length})
@@ -165,7 +167,7 @@ export function TimelineEntryCard({
             </button>
           </div>
 
-          {!simpleMode && research && (
+          {showSearchControls && research && (
             <div className="rounded-md border border-zinc-800 p-3">
               <label className="label" htmlFor={`q-${entry.id}`}>
                 Search queries (one per line, up to 3)
@@ -194,7 +196,7 @@ export function TimelineEntryCard({
             </div>
           )}
 
-          {!simpleMode && showAlts && (
+          {showSearchControls && showAlts && (
             <div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {alternatives.map((c) => (

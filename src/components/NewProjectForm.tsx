@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
+import { mediaQueryFromFilename } from "@/lib/query";
 import { Dropzone } from "./Dropzone";
 import { ProgressBar } from "./ProgressBar";
 
@@ -36,11 +37,7 @@ export function NewProjectForm() {
       setError("Choose a narration file first.");
       return;
     }
-    if (!image) {
-      setError("Choose an image first.");
-      return;
-    }
-    if (!image.type.startsWith("image/")) {
+    if (image && !image.type.startsWith("image/")) {
       setError("Only image files are accepted");
       return;
     }
@@ -51,7 +48,7 @@ export function NewProjectForm() {
       const form = new FormData();
       form.append("media", file);
       await api.upload(project.id, form, setUploadPct);
-      const { job } = await api.simpleRender(project.id, image);
+      const { job } = await api.simpleRender(project.id, image ?? undefined);
       router.push(`/projects/${project.id}?job=${job.id}`);
     } catch (err) {
       setError((err as Error).message);
@@ -73,7 +70,7 @@ export function NewProjectForm() {
       </div>
 
       <div>
-        <label className="label">Image</label>
+        <label className="label">Image (optional — leave empty and I&apos;ll pick one from the audio file name)</label>
         <Dropzone
           file={image}
           onFile={(f) => {
@@ -87,6 +84,7 @@ export function NewProjectForm() {
         />
       </div>
 
+      {!image && file && <p className="text-xs text-zinc-400">Will search for: “{mediaQueryFromFilename(file.name)}”</p>}
       {error && <p className="text-sm text-red-300">{error}</p>}
 
       {busy ? (
@@ -94,10 +92,10 @@ export function NewProjectForm() {
           stage="uploading"
           progress={uploadPct * 100}
           message={uploadPct < 1 ? `Uploading ${Math.round(uploadPct * 100)}%` : "Starting pipeline…"}
-          stages={["uploading", "rendering", "done"]}
+          stages={image ? ["uploading", "rendering", "done"] : ["uploading", "searching", "selecting", "rendering", "done"]}
         />
       ) : (
-        <button type="button" className="btn btn-primary w-full py-3 text-base" onClick={submit} disabled={!file || !image}>
+        <button type="button" className="btn btn-primary w-full py-3 text-base" onClick={submit} disabled={!file}>
           Create video
         </button>
       )}

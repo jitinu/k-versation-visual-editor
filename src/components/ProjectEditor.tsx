@@ -98,7 +98,13 @@ export function ProjectEditor({ projectId, initialJobId }: { projectId: string; 
     });
 
   const patchEntry = (entryId: string, body: Record<string, unknown>) =>
-    run(async () => setProject(await api.patchEntry(projectId, entryId, body)));
+    run(async () => {
+      setProject(await api.patchEntry(projectId, entryId, body));
+      if (body.chosenCandidateId) {
+        const { job } = await api.render(projectId);
+        await watch(job, setRenderJob);
+      }
+    });
 
   if (!project) return <p className="text-sm text-zinc-500">{error ?? "Loading project…"}</p>;
 
@@ -143,7 +149,13 @@ export function ProjectEditor({ projectId, initialJobId }: { projectId: string; 
         )}
 
         {job && job.stage !== "done" && (
-          <ProgressBar stage={job.stage} progress={job.progress} message={job.message} error={job.error} />
+          <ProgressBar
+            stage={job.stage}
+            progress={job.progress}
+            message={job.message}
+            error={job.error}
+            stages={job.type === "auto" ? ["uploading", "searching", "selecting", "rendering", "done"] : undefined}
+          />
         )}
         {job?.stage === "done" && job.message && <p className="text-xs text-emerald-300">{job.message}</p>}
         {error && <p className="text-sm text-red-300">{error}</p>}

@@ -101,7 +101,7 @@ export type JobStage =
 
 export interface JobState {
   id: string;
-  type: "generate" | "render" | "regenerate";
+  type: "generate" | "render" | "regenerate" | "auto";
   projectId: string;
   stage: JobStage;
   progress: number;

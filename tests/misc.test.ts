@@ -6,6 +6,14 @@ import { entryFromMoment, normalizeTimeline } from "@/lib/pipeline/timeline";
 import { hammingHex } from "@/lib/pipeline/images";
 import { mockTranscript } from "@/lib/pipeline/transcribe";
 import { assertSafeSegment, resolveInProject } from "@/lib/storage/files";
+import { mediaQueryFromFilename } from "@/lib/query";
+
+describe("media filename queries", () => {
+  it("cleans common suffixes and separators", () => {
+    expect(mediaQueryFromFilename("Kimchi_stew (1).mp3")).toBe("Kimchi stew");
+    expect(mediaQueryFromFilename("son-heung-min_final_v2.m4a")).toBe("son heung min");
+  });
+});
 
 describe("logger redaction", () => {
   it("masks secret-looking keys and values", () => {
