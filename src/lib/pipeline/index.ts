@@ -186,9 +186,10 @@ export function startAutoImageJob(projectId: string, title?: string): JobState {
       transcript_excerpt: query,
       visual_priority_score: 1,
       why_visual_is_helpful: "Title image for the whole video",
+      // the plain title only: "photo" / "wallpaper" variants steer away from what a search for the title shows first
       search_query_1: query,
-      search_query_2: `${query} photo`,
-      search_query_3: `${query} high resolution`,
+      search_query_2: "",
+      search_query_3: "",
       suggested_visual_type: "photo",
     };
     const { candidates, mocked } = await searchCandidates(moment);

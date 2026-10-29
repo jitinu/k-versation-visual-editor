@@ -27,10 +27,12 @@ async function fetchImage(url: string): Promise<Buffer> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), config.search.timeoutMs);
   try {
-    const res = await fetch(url, {
-      signal: ctrl.signal,
-      headers: { "User-Agent": "k-versation-visual-editor/0.1 (personal documentary tool)" },
-    });
+    const headers = { "User-Agent": "k-versation-visual-editor/0.1 (personal documentary tool)" };
+    let res = await fetch(url, { signal: ctrl.signal, headers });
+    if (res.status === 429) {
+      await new Promise((r) => setTimeout(r, 1500));
+      res = await fetch(url, { signal: ctrl.signal, headers });
+    }
     if (!res.ok) throw new Error(`${res.status}`);
     const type = res.headers.get("content-type") ?? "";
     if (!type.startsWith("image/")) throw new Error(`not an image: ${type}`);
@@ -86,25 +88,20 @@ async function ocrWords(buf: Buffer): Promise<string[]> {
 }
 
 const SALES_TEXT =
-  /\b(download|printable|instant|sizes?|included|wall art|poster|shop|buy|sale|price|order|etsy|amazon|digital|shipping|cart|designed|www|com)\b/i;
+  /\b(download|printable|instant|sizes? included|wall art|poster|shop|buy|sale|price|order|etsy|amazon|digital|shipping|cart)\b/i;
 
 /**
- * OCR the picture. Product listings carry sales text ("Printable Wall Art, Digital Download,
- * 4 Sizes Included") and lyric sheets / infographics are walls of text; neither is a cover
- * photo. A short caption that is just the subject's name (KAKAO FRIENDS) is fine.
- * Returns a reason to reject, or a penalty 0..0.3 for a few stray words.
+ * OCR the picture and reject product listings: they carry sales text such as
+ * "Printable Wall Art, Digital Download, 4 Sizes Included". Text as such is fine; a fan
+ * chant guide or an infographic can be exactly the right cover.
  */
-export async function textCheck(buf: Buffer, query: string | undefined): Promise<{ reject?: string; penalty: number }> {
+export async function textCheck(buf: Buffer): Promise<{ reject?: string }> {
   const img = await sharp(buf, { failOn: "none" }).rotate().resize({ width: 1200, withoutEnlargement: true }).png().toBuffer();
   const words = await ocrWords(img);
-  if (!words.length) return { penalty: 0 };
+  if (!words.length) return {};
   const text = words.join(" ");
-  if (SALES_TEXT.test(text)) return { reject: `sales text in image: "${text.slice(0, 60)}"`, penalty: 0 };
-  if (words.length >= 15) return { reject: `text-heavy image (${words.length} words)`, penalty: 0 };
-  const q = new Set(tokens(query ?? ""));
-  const foreign = words.filter((w) => !q.has(w.toLowerCase()));
-  if (words.length >= 3 && foreign.length / words.length > 0.6) return { penalty: Math.min(0.3, 0.05 * foreign.length) };
-  return { penalty: 0 };
+  if (SALES_TEXT.test(text)) return { reject: `sales text in image: "${text.slice(0, 60)}"` };
+  return {};
 }
 
 /** Camera-roll style names (IMG_1234, DSC0001, 20200731 162246) say nothing about the subject. */
@@ -121,8 +118,15 @@ const tokens = (s: string) =>
 export function titleRelevance(query: string | undefined, c: { title?: string; sourcePageUrl?: string }): number {
   const q = tokens(query ?? "");
   if (!q.length) return 0.5;
-  const hay = new Set(tokens(`${c.title ?? ""} ${decodeURIComponent(c.sourcePageUrl ?? "")}`));
-  const hit = q.filter((t) => hay.has(t) || [...hay].some((h) => h.startsWith(t) || t.startsWith(h))).length;
+  const hay = [...new Set(tokens(`${c.title ?? ""} ${decodeURIComponent(c.sourcePageUrl ?? "")}`))];
+  const joined = hay.join("");
+  const stem = (w: string) => w.replace(/(es|s)$/, "");
+  const hit = q.filter((t) => {
+    const st = stem(t);
+    if (hay.some((h) => h.startsWith(st) || st.startsWith(stem(h)))) return true;
+    // "fan chants" vs "Fanchant", "kpop" vs "K-POP": compound words and hyphenation
+    return st.length >= 4 && (hay.some((h) => h.includes(st)) || joined.includes(st));
+  }).length;
   return +(hit / q.length).toFixed(3);
 }
 
@@ -139,7 +143,8 @@ function popularity(query: string | undefined, c: ImageCandidate): { rankScore: 
     return { rankScore: match, leadBonus: match >= 0.8 ? 0.15 : 0 };
   }
   if (c.provider === "wikimedia" || c.provider === "openverse") return { rankScore: 0.5, leadBonus: 0 };
-  return { rankScore: Math.max(0, 1 - (c.rank ?? 0) / 6), leadBonus: 0 };
+  // the first result is the picture people expect to see for the title
+  return { rankScore: Math.max(0, 1 - (c.rank ?? 0) / 8), leadBonus: c.rank === 0 ? 0.1 : 0 };
 }
 
 export async function dHash(buf: Buffer): Promise<string> {
@@ -200,13 +205,13 @@ export async function downloadAndPrefilter(
         results.push(cand);
         continue;
       }
-      if (width < config.filter.minWidth || height < config.filter.minHeight) {
+      if (width * height < config.filter.minWidth * config.filter.minHeight || Math.min(width, height) < 500) {
         cand.rejected = `too small (${width}x${height})`;
         results.push(cand);
         continue;
       }
       const aspect = width / height;
-      if (aspect < 0.7 || aspect > 3.2) {
+      if (aspect < 0.6 || aspect > 3.2) {
         cand.rejected = `extreme aspect ratio (${aspect.toFixed(2)})`;
         results.push(cand);
         continue;
@@ -228,14 +233,15 @@ export async function downloadAndPrefilter(
         .toFile(resolveInProject(projectId, rel));
       cand.localPath = rel;
 
-      const text = await textCheck(buf, query);
+      const text = await textCheck(buf);
       if (text.reject) {
         cand.rejected = text.reject;
         results.push(cand);
         continue;
       }
 
-      const resScore = Math.min(1, Math.min(width / 1920, height / 1080));
+      // fills the 1920x1080 canvas in at least one direction (a tall guide sheet that fills the height is fine)
+      const resScore = Math.min(1, Math.max(width / 1920, height / 1080));
       const aspectScore = 1 - Math.min(1, Math.abs(aspect - 16 / 9) / 2);
       cand.relevance = titleRelevance(query, cand);
       const { rankScore, leadBonus } = popularity(query, cand);
@@ -243,13 +249,12 @@ export async function downloadAndPrefilter(
       cand.prefilterScore = +Math.max(
         0,
         0.35 * cand.relevance +
-          0.3 * rankScore +
-          0.15 * resScore +
-          0.1 * aspectScore +
-          0.1 * cand.authority +
+          0.35 * rankScore +
+          0.1 * resScore +
+          0.05 * aspectScore +
+          0.05 * cand.authority +
           leadBonus -
-          genericPenalty -
-          text.penalty,
+          genericPenalty,
       ).toFixed(3);
       results.push(cand);
     } catch (err) {
