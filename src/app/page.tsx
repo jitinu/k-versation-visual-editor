@@ -5,9 +5,9 @@ export default function HomePage() {
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
       <section>
-        <h1 className="text-2xl font-semibold tracking-tight">New project</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Make videos</h1>
         <p className="mt-1 text-sm text-zinc-400">
-          Upload narration audio and one image to create an MP4 with that image held for the full narration.
+          Drop in one or many narration files. Each file name is used as the title: the app finds a cover image for it and renders an MP4.
         </p>
         <div className="mt-6">
           <NewProjectForm />

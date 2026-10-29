@@ -172,12 +172,12 @@ export function startRenderJob(projectId: string): JobState {
   return job;
 }
 
-export function startAutoImageJob(projectId: string): JobState {
+export function startAutoImageJob(projectId: string, title?: string): JobState {
   return startJob("auto", projectId, async (ctx) => {
     const project = await requireProject(projectId);
     if (!project.mediaPath || !project.mediaDuration) throw new Error("Upload an audio/video file first");
-    const query = mediaQueryFromFilename(project.mediaOriginalName ?? project.mediaPath);
-    if (!query) throw new Error("Could not determine an image search query from the audio filename");
+    const query = title?.trim() || mediaQueryFromFilename(project.mediaOriginalName ?? project.mediaPath);
+    if (!query) throw new Error("Type a title so I know what image to search for");
 
     await ctx.update("searching", 10, `Searching images for “${query}”…`);
     const moment: CandidateMoment = {
@@ -191,8 +191,8 @@ export function startAutoImageJob(projectId: string): JobState {
       search_query_3: `${query} high resolution`,
       suggested_visual_type: "photo",
     };
-    const { candidates } = await searchCandidates(moment);
-    if (!candidates.length) throw new Error(`No images found for “${query}” — upload an image instead`);
+    const { candidates, mocked } = await searchCandidates(moment);
+    if (mocked || !candidates.length) throw new Error(`No images found for “${query}” — upload an image instead`);
     const downloaded = await downloadAndPrefilter(projectId, "auto", candidates);
     const large = downloaded.filter((c) => !c.rejected && c.localPath && (c.width ?? 0) * (c.height ?? 0) >= 1280 * 720);
     const preferred = large.length >= 3 ? downloaded.filter((c) => large.includes(c) || c.rejected) : downloaded;
@@ -228,9 +228,8 @@ export function startAutoImageJob(projectId: string): JobState {
       p.renderStatus = "idle";
       p.outputVideoPath = undefined;
       p.lastJobId = ctx.job.id;
-      if ((!p.title || p.title === "Untitled project") && p.mediaOriginalName) {
-        p.title = path.basename(p.mediaOriginalName, path.extname(p.mediaOriginalName));
-      }
+      if (title?.trim()) p.title = title.trim();
+      else if (!p.title || p.title === "Untitled project") p.title = query;
     });
     log.info(`auto image selected for ${updated.id}`, { query, chosen, alternatives: Math.max(0, rankedCandidates.length - 1) });
     await renderProject(projectId, ctx);

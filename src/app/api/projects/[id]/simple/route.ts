@@ -18,8 +18,9 @@ export async function POST(req: Request, { params }: Params<{ id: string }>) {
 
     const form = await req.formData();
     const file = form.get("image");
+    const title = typeof form.get("title") === "string" ? (form.get("title") as string).trim().slice(0, 200) : "";
     if (!(file instanceof File) || file.size === 0) {
-      const job = startAutoImageJob(id);
+      const job = startAutoImageJob(id, title);
       return json({ project, job }, 202);
     }
     if (!file.type.startsWith("image/")) throw new HttpError(400, "Only image files are accepted");
@@ -43,7 +44,8 @@ export async function POST(req: Request, { params }: Params<{ id: string }>) {
       }];
       p.renderStatus = "idle";
       p.outputVideoPath = undefined;
-      if ((!p.title || p.title === "Untitled project") && p.mediaOriginalName) {
+      if (title) p.title = title;
+      else if ((!p.title || p.title === "Untitled project") && p.mediaOriginalName) {
         p.title = path.basename(p.mediaOriginalName, path.extname(p.mediaOriginalName));
       }
     });

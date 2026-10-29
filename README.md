@@ -42,7 +42,7 @@ With nothing in `.env.local` the defaults are `TRANSCRIPTION_PROVIDER=local`, `L
 
 ### Simple mode
 
-The home page exposes Simple mode only: choose a narration file and optionally one JPG/PNG/WebP image, then click **Create video**. If you leave the image empty, the app searches Wikimedia, Openverse, and DuckDuckGo using a cleaned version of the audio filename, and llava ranks the downloaded candidates when Ollama is running. The best image is held for the full narration, with alternatives available in the editor. An uploaded image still renders directly without transcription, LLM analysis, or image search. The project editor lets you replace the image, adjust its start/end, configure rendering, and download the MP4.
+The home page exposes Simple mode only: drop one or many narration files and click **Create videos**. Each file name is used as the title (cleaned of underscores, version suffixes and numbering). For every file the app searches Wikimedia, Openverse, and DuckDuckGo for that title, picks the best-looking candidate (llava ranks the downloaded candidates when Ollama is running and `VISION_RANKING_ENABLED` is not `false`; otherwise resolution, aspect ratio and source authority decide), holds it for the full narration, and renders the MP4. Two files are processed at a time; each row shows progress and a **Download MP4** button when finished. The project editor still lets you swap the image, adjust its start/end, configure rendering, and download the MP4. The `/api/projects/:id/simple` route also accepts an optional `image` file (rendered directly, no search) and an optional `title` field that overrides the file name.
 
 ### Advanced: AI visual timeline (API)
 
@@ -61,9 +61,9 @@ All provider calls are retried (`SEARCH_RETRIES`) with timeouts and never log ke
 ## Test the simple mode
 
 1. `npm run dev` and open http://localhost:3000.
-2. Drop an `.mp3/.wav/.m4a/.mp4/.mov` narration file on the audio drop zone.
-3. Optionally drop one `.jpg/.jpeg/.png/.webp` image on the image drop zone. Leave it empty to search by the audio filename.
-4. Click **Create video**, wait for the search/rank/render job, then download the MP4 from the project editor.
+2. Drop one or more `.mp3/.wav/.m4a/.mp4/.mov` narration files on the drop zone (name each file after its topic, e.g. `Gyeongbokgung_Palace.mp3`).
+3. Click **Create videos** and wait; each row goes Uploading, Searching, Selecting, Rendering, Done.
+4. Click **Download MP4** on each finished row (or **Open** to swap the cover image).
 5. Return to the home page later — the project list reopens saved projects.
 
 ### Advanced: AI visual timeline (API) test
