@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import { execFile } from "node:child_process";
 import { config } from "../config";
 import { createLogger } from "../logger";
 import { ensureDir, resolveInProject } from "../storage/files";
@@ -42,6 +43,70 @@ async function fetchImage(url: string): Promise<Buffer> {
 }
 
 /** 8x8 difference hash for near-duplicate detection. */
+/** Marketplaces and print-on-demand shops: their images are product listings with sales text, not the subject. */
+const SHOP_DOMAIN =
+  /(etsy|amazon|ebay|aliexpress|alibaba|shopee|lazada|walmart|target\.com|redbubble|teepublic|society6|zazzle|displate|teespring|spreadshirt|cafepress|threadless|printful|gelato|fineartamerica|posterlounge|allposters|art\.com|wayfair|temu|wish\.com|mercari|depop|poshmark|^shop\.|^store\.|\bshop\b|\bstore\b|merch)/i;
+const LISTING_TITLE =
+  /\b(printable|digital download|instant download|wall art|poster|sticker|t-?shirt|hoodie|mug|merch|buy now|for sale|price|template|clipart|cricut|etsy|amazon)\b/i;
+
+export function isShopListing(c: { domain?: string; title?: string; provider?: string }): boolean {
+  if (c.provider === "wikipedia" || c.provider === "wikimedia") return false;
+  return SHOP_DOMAIN.test(c.domain ?? "") || LISTING_TITLE.test(c.title ?? "");
+}
+
+let tesseractAvailable: boolean | undefined;
+
+/** Words tesseract is at least 70% sure about; photos of trees and grass yield none, real text yields plenty. */
+async function ocrWords(buf: Buffer): Promise<string[]> {
+  if (tesseractAvailable === false) return [];
+  const tsv = await new Promise<string>((resolve) => {
+    const child = execFile(
+      "tesseract",
+      ["stdin", "stdout", "--psm", "11", "-l", "eng", "tsv"],
+      { timeout: 15_000, maxBuffer: 4 << 20, encoding: "utf8" },
+      (err, stdout) => {
+        if (err && (err as NodeJS.ErrnoException).code === "ENOENT") {
+          tesseractAvailable = false;
+          log.warn("tesseract not installed; skipping text check");
+          return resolve("");
+        }
+        tesseractAvailable = true;
+        resolve(err ? "" : String(stdout));
+      },
+    );
+    child.stdin?.on("error", () => undefined);
+    child.stdin?.end(buf);
+  });
+  return tsv
+    .split("\n")
+    .slice(1)
+    .map((l) => l.split("\t"))
+    .filter((r) => r.length >= 12 && Number(r[10]) >= 70 && /^[A-Za-z]{3,}$/.test(r[11]) && /[aeiouy]/i.test(r[11]))
+    .map((r) => r[11]);
+}
+
+const SALES_TEXT =
+  /\b(download|printable|instant|sizes?|included|wall art|poster|shop|buy|sale|price|order|etsy|amazon|digital|shipping|cart|designed|www|com)\b/i;
+
+/**
+ * OCR the picture. Product listings carry sales text ("Printable Wall Art, Digital Download,
+ * 4 Sizes Included") and lyric sheets / infographics are walls of text; neither is a cover
+ * photo. A short caption that is just the subject's name (KAKAO FRIENDS) is fine.
+ * Returns a reason to reject, or a penalty 0..0.3 for a few stray words.
+ */
+export async function textCheck(buf: Buffer, query: string | undefined): Promise<{ reject?: string; penalty: number }> {
+  const img = await sharp(buf, { failOn: "none" }).rotate().resize({ width: 1200, withoutEnlargement: true }).png().toBuffer();
+  const words = await ocrWords(img);
+  if (!words.length) return { penalty: 0 };
+  const text = words.join(" ");
+  if (SALES_TEXT.test(text)) return { reject: `sales text in image: "${text.slice(0, 60)}"`, penalty: 0 };
+  if (words.length >= 15) return { reject: `text-heavy image (${words.length} words)`, penalty: 0 };
+  const q = new Set(tokens(query ?? ""));
+  const foreign = words.filter((w) => !q.has(w.toLowerCase()));
+  if (words.length >= 3 && foreign.length / words.length > 0.6) return { penalty: Math.min(0.3, 0.05 * foreign.length) };
+  return { penalty: 0 };
+}
+
 /** Camera-roll style names (IMG_1234, DSC0001, 20200731 162246) say nothing about the subject. */
 const GENERIC_TITLE = /\b(img|dsc[nf]?|pxl|p\d{7}|\d{8}[ _-]\d{6}|screenshot|untitled)\b/i;
 
@@ -130,13 +195,18 @@ export async function downloadAndPrefilter(
       cand.width = width;
       cand.height = height;
 
+      if (isShopListing(cand)) {
+        cand.rejected = "shop listing / product image";
+        results.push(cand);
+        continue;
+      }
       if (width < config.filter.minWidth || height < config.filter.minHeight) {
         cand.rejected = `too small (${width}x${height})`;
         results.push(cand);
         continue;
       }
       const aspect = width / height;
-      if (aspect < 0.5 || aspect > 3.2) {
+      if (aspect < 0.7 || aspect > 3.2) {
         cand.rejected = `extreme aspect ratio (${aspect.toFixed(2)})`;
         results.push(cand);
         continue;
@@ -158,6 +228,13 @@ export async function downloadAndPrefilter(
         .toFile(resolveInProject(projectId, rel));
       cand.localPath = rel;
 
+      const text = await textCheck(buf, query);
+      if (text.reject) {
+        cand.rejected = text.reject;
+        results.push(cand);
+        continue;
+      }
+
       const resScore = Math.min(1, Math.min(width / 1920, height / 1080));
       const aspectScore = 1 - Math.min(1, Math.abs(aspect - 16 / 9) / 2);
       cand.relevance = titleRelevance(query, cand);
@@ -171,7 +248,8 @@ export async function downloadAndPrefilter(
           0.1 * aspectScore +
           0.1 * cand.authority +
           leadBonus -
-          genericPenalty,
+          genericPenalty -
+          text.penalty,
       ).toFixed(3);
       results.push(cand);
     } catch (err) {
