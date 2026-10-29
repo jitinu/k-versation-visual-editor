@@ -42,6 +42,41 @@ async function fetchImage(url: string): Promise<Buffer> {
 }
 
 /** 8x8 difference hash for near-duplicate detection. */
+/** Camera-roll style names (IMG_1234, DSC0001, 20200731 162246) say nothing about the subject. */
+const GENERIC_TITLE = /\b(img|dsc[nf]?|pxl|p\d{7}|\d{8}[ _-]\d{6}|screenshot|untitled)\b/i;
+
+const tokens = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/\.[a-z0-9]{2,4}$/i, "")
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((t) => t.length >= 2);
+
+/** Share of the query's words that appear in the candidate's title or page URL (0..1; 0.5 when there is no query). */
+export function titleRelevance(query: string | undefined, c: { title?: string; sourcePageUrl?: string }): number {
+  const q = tokens(query ?? "");
+  if (!q.length) return 0.5;
+  const hay = new Set(tokens(`${c.title ?? ""} ${decodeURIComponent(c.sourcePageUrl ?? "")}`));
+  const hit = q.filter((t) => hay.has(t) || [...hay].some((h) => h.startsWith(t) || t.startsWith(h))).length;
+  return +(hit / q.length).toFixed(3);
+}
+
+/**
+ * How "iconic" a candidate is likely to be. Search engines put the picture people expect
+ * first, so position matters; Commons search is not popularity-ranked, so it gets a flat
+ * middle score. The Wikipedia lead image gets a bonus only when the article title matches
+ * the query (the "Kakao" article's photo is not the picture for "Kakao Friends").
+ */
+function popularity(query: string | undefined, c: ImageCandidate): { rankScore: number; leadBonus: number } {
+  if (c.provider === "wikipedia") {
+    const articleTitle = (c.title ?? "").replace(/\s*\(.*\)$/, "");
+    const match = titleRelevance(query, { title: articleTitle });
+    return { rankScore: match, leadBonus: match >= 0.8 ? 0.15 : 0 };
+  }
+  if (c.provider === "wikimedia" || c.provider === "openverse") return { rankScore: 0.5, leadBonus: 0 };
+  return { rankScore: Math.max(0, 1 - (c.rank ?? 0) / 6), leadBonus: 0 };
+}
+
 export async function dHash(buf: Buffer): Promise<string> {
   const { data } = await sharp(buf).greyscale().resize(9, 8, { fit: "fill" }).raw().toBuffer({ resolveWithObject: true });
   let bits = "";
@@ -69,6 +104,7 @@ export async function downloadAndPrefilter(
   projectId: string,
   entryId: string,
   candidates: ImageCandidate[],
+  query?: string,
 ): Promise<ImageCandidate[]> {
   const dir = resolveInProject(projectId, path.join("images", entryId));
   await ensureDir(dir);
@@ -124,7 +160,19 @@ export async function downloadAndPrefilter(
 
       const resScore = Math.min(1, Math.min(width / 1920, height / 1080));
       const aspectScore = 1 - Math.min(1, Math.abs(aspect - 16 / 9) / 2);
-      cand.prefilterScore = +(0.5 * cand.authority + 0.3 * resScore + 0.2 * aspectScore).toFixed(3);
+      cand.relevance = titleRelevance(query, cand);
+      const { rankScore, leadBonus } = popularity(query, cand);
+      const genericPenalty = GENERIC_TITLE.test(cand.title ?? "") ? 0.25 : 0;
+      cand.prefilterScore = +Math.max(
+        0,
+        0.35 * cand.relevance +
+          0.3 * rankScore +
+          0.15 * resScore +
+          0.1 * aspectScore +
+          0.1 * cand.authority +
+          leadBonus -
+          genericPenalty,
+      ).toFixed(3);
       results.push(cand);
     } catch (err) {
       cand.rejected = `download failed (${(err as Error).message})`;

@@ -61,6 +61,9 @@ export interface ImageCandidate {
   /** local path once downloaded (relative to project dir) */
   localPath?: string;
   prefilterScore?: number;
+  relevance?: number;
+  /** 0-based position in its provider's result list (search engines rank the iconic image first). */
+  rank?: number;
   visionScore?: number;
   visionReason?: string;
   rejected?: string;

@@ -193,8 +193,8 @@ export function startAutoImageJob(projectId: string, title?: string): JobState {
     };
     const { candidates, mocked } = await searchCandidates(moment);
     if (mocked || !candidates.length) throw new Error(`No images found for “${query}” — upload an image instead`);
-    const downloaded = await downloadAndPrefilter(projectId, "auto", candidates);
-    const large = downloaded.filter((c) => !c.rejected && c.localPath && (c.width ?? 0) * (c.height ?? 0) >= 1280 * 720);
+    const downloaded = await downloadAndPrefilter(projectId, "auto", candidates, query);
+    const large = downloaded.filter((c) => !c.rejected && c.localPath && (c.width ?? 0) * (c.height ?? 0) >= 1024 * 576);
     const preferred = large.length >= 3 ? downloaded.filter((c) => large.includes(c) || c.rejected) : downloaded;
 
     await ctx.update("selecting", 60, `Selecting the best image for “${query}”…`);

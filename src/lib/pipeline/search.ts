@@ -346,9 +346,50 @@ export function mockCandidates(query: string, count: number): ImageCandidate[] {
   }));
 }
 
+/* ---------------- Wikipedia lead images (no key; the main photo of the matching article) ---------------- */
+
+type WikipediaResponse = {
+  query?: {
+    pages?: Record<
+      string,
+      { pageid: number; title: string; index?: number; pageimage?: string; original?: { source: string; width: number; height: number } }
+    >;
+  };
+};
+
+async function searchWikipediaLead(query: string, limit: number): Promise<ImageCandidate[]> {
+  const params = new URLSearchParams({
+    action: "query",
+    generator: "search",
+    gsrsearch: query,
+    gsrlimit: String(Math.min(limit, 5)),
+    prop: "pageimages",
+    piprop: "original|name",
+    format: "json",
+    origin: "*",
+  });
+  const json = await fetchJson<WikipediaResponse>(`https://en.wikipedia.org/w/api.php?${params}`);
+  const pages = Object.values(json.query?.pages ?? {}).sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+  return pages
+    .filter((p) => p.original && !/\.svg$/i.test(p.original.source))
+    .map((p) => ({
+      id: newId("img"),
+      imageUrl: p.original!.source,
+      sourcePageUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(p.title.replace(/ /g, "_"))}`,
+      sourceName: "Wikipedia",
+      title: `${p.title} (${(p.pageimage ?? "").replace(/_/g, " ")})`,
+      domain: "en.wikipedia.org",
+      width: p.original!.width,
+      height: p.original!.height,
+      provider: "wikipedia",
+      authority: 1.0,
+    }) satisfies ImageCandidate);
+}
+
 /* ---------------- Orchestration ---------------- */
 
 const providerFns: Record<Exclude<SearchProvider, "mock">, (q: string, limit: number) => Promise<ImageCandidate[]>> = {
+  wikipedia: searchWikipediaLead,
   wikimedia: searchWikimedia,
   openverse: searchOpenverse,
   duckduckgo: searchDuckDuckGo,
@@ -384,11 +425,12 @@ export async function searchCandidates(moment: CandidateMoment): Promise<{ candi
   const perProvider = Math.max(4, Math.ceil(maxCandidates / providers.length));
 
   const add = (results: ImageCandidate[]) => {
-    for (const c of results) {
-      if (!c.imageUrl || seen.has(c.imageUrl)) continue;
+    results.forEach((c, i) => {
+      if (!c.imageUrl || seen.has(c.imageUrl)) return;
       seen.add(c.imageUrl);
+      c.rank ??= i;
       out.push(c);
-    }
+    });
   };
 
   for (const [qi, q] of queries.entries()) {
