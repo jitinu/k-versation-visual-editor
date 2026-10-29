@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import { execFile } from "node:child_process";
 import { config } from "../config";
 import { createLogger } from "../logger";
 import { ensureDir, resolveInProject } from "../storage/files";
@@ -26,10 +27,12 @@ async function fetchImage(url: string): Promise<Buffer> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), config.search.timeoutMs);
   try {
-    const res = await fetch(url, {
-      signal: ctrl.signal,
-      headers: { "User-Agent": "k-versation-visual-editor/0.1 (personal documentary tool)" },
-    });
+    const headers = { "User-Agent": "k-versation-visual-editor/0.1 (personal documentary tool)" };
+    let res = await fetch(url, { signal: ctrl.signal, headers });
+    if (res.status === 429) {
+      await new Promise((r) => setTimeout(r, 1500));
+      res = await fetch(url, { signal: ctrl.signal, headers });
+    }
     if (!res.ok) throw new Error(`${res.status}`);
     const type = res.headers.get("content-type") ?? "";
     if (!type.startsWith("image/")) throw new Error(`not an image: ${type}`);
@@ -42,6 +45,108 @@ async function fetchImage(url: string): Promise<Buffer> {
 }
 
 /** 8x8 difference hash for near-duplicate detection. */
+/** Marketplaces and print-on-demand shops: their images are product listings with sales text, not the subject. */
+const SHOP_DOMAIN =
+  /(etsy|amazon|ebay|aliexpress|alibaba|shopee|lazada|walmart|target\.com|redbubble|teepublic|society6|zazzle|displate|teespring|spreadshirt|cafepress|threadless|printful|gelato|fineartamerica|posterlounge|allposters|art\.com|wayfair|temu|wish\.com|mercari|depop|poshmark|^shop\.|^store\.|\bshop\b|\bstore\b|merch)/i;
+const LISTING_TITLE =
+  /\b(printable|digital download|instant download|wall art|poster|sticker|t-?shirt|hoodie|mug|merch|buy now|for sale|price|template|clipart|cricut|etsy|amazon)\b/i;
+
+export function isShopListing(c: { domain?: string; title?: string; provider?: string }): boolean {
+  if (c.provider === "wikipedia" || c.provider === "wikimedia") return false;
+  return SHOP_DOMAIN.test(c.domain ?? "") || LISTING_TITLE.test(c.title ?? "");
+}
+
+let tesseractAvailable: boolean | undefined;
+
+/** Words tesseract is at least 70% sure about; photos of trees and grass yield none, real text yields plenty. */
+async function ocrWords(buf: Buffer): Promise<string[]> {
+  if (tesseractAvailable === false) return [];
+  const tsv = await new Promise<string>((resolve) => {
+    const child = execFile(
+      "tesseract",
+      ["stdin", "stdout", "--psm", "11", "-l", "eng", "tsv"],
+      { timeout: 15_000, maxBuffer: 4 << 20, encoding: "utf8" },
+      (err, stdout) => {
+        if (err && (err as NodeJS.ErrnoException).code === "ENOENT") {
+          tesseractAvailable = false;
+          log.warn("tesseract not installed; skipping text check");
+          return resolve("");
+        }
+        tesseractAvailable = true;
+        resolve(err ? "" : String(stdout));
+      },
+    );
+    child.stdin?.on("error", () => undefined);
+    child.stdin?.end(buf);
+  });
+  return tsv
+    .split("\n")
+    .slice(1)
+    .map((l) => l.split("\t"))
+    .filter((r) => r.length >= 12 && Number(r[10]) >= 70 && /^[A-Za-z]{3,}$/.test(r[11]) && /[aeiouy]/i.test(r[11]))
+    .map((r) => r[11]);
+}
+
+const SALES_TEXT =
+  /\b(download|printable|instant|sizes? included|wall art|poster|shop|buy|sale|price|order|etsy|amazon|digital|shipping|cart)\b/i;
+
+/**
+ * OCR the picture and reject product listings: they carry sales text such as
+ * "Printable Wall Art, Digital Download, 4 Sizes Included". Text as such is fine; a fan
+ * chant guide or an infographic can be exactly the right cover.
+ */
+export async function textCheck(buf: Buffer): Promise<{ reject?: string }> {
+  const img = await sharp(buf, { failOn: "none" }).rotate().resize({ width: 1200, withoutEnlargement: true }).png().toBuffer();
+  const words = await ocrWords(img);
+  if (!words.length) return {};
+  const text = words.join(" ");
+  if (SALES_TEXT.test(text)) return { reject: `sales text in image: "${text.slice(0, 60)}"` };
+  return {};
+}
+
+/** Camera-roll style names (IMG_1234, DSC0001, 20200731 162246) say nothing about the subject. */
+const GENERIC_TITLE = /\b(img|dsc[nf]?|pxl|p\d{7}|\d{8}[ _-]\d{6}|screenshot|untitled)\b/i;
+
+const tokens = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/\.[a-z0-9]{2,4}$/i, "")
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((t) => t.length >= 2);
+
+/** Share of the query's words that appear in the candidate's title or page URL (0..1; 0.5 when there is no query). */
+export function titleRelevance(query: string | undefined, c: { title?: string; sourcePageUrl?: string }): number {
+  const q = tokens(query ?? "");
+  if (!q.length) return 0.5;
+  const hay = [...new Set(tokens(`${c.title ?? ""} ${decodeURIComponent(c.sourcePageUrl ?? "")}`))];
+  const joined = hay.join("");
+  const stem = (w: string) => w.replace(/(es|s)$/, "");
+  const hit = q.filter((t) => {
+    const st = stem(t);
+    if (hay.some((h) => h.startsWith(st) || st.startsWith(stem(h)))) return true;
+    // "fan chants" vs "Fanchant", "kpop" vs "K-POP": compound words and hyphenation
+    return st.length >= 4 && (hay.some((h) => h.includes(st)) || joined.includes(st));
+  }).length;
+  return +(hit / q.length).toFixed(3);
+}
+
+/**
+ * How "iconic" a candidate is likely to be. Search engines put the picture people expect
+ * first, so position matters; Commons search is not popularity-ranked, so it gets a flat
+ * middle score. The Wikipedia lead image gets a bonus only when the article title matches
+ * the query (the "Kakao" article's photo is not the picture for "Kakao Friends").
+ */
+function popularity(query: string | undefined, c: ImageCandidate): { rankScore: number; leadBonus: number } {
+  if (c.provider === "wikipedia") {
+    const articleTitle = (c.title ?? "").replace(/\s*\(.*\)$/, "");
+    const match = titleRelevance(query, { title: articleTitle });
+    return { rankScore: match, leadBonus: match >= 0.8 ? 0.15 : 0 };
+  }
+  if (c.provider === "wikimedia" || c.provider === "openverse") return { rankScore: 0.5, leadBonus: 0 };
+  // the first result is the picture people expect to see for the title
+  return { rankScore: Math.max(0, 1 - (c.rank ?? 0) / 8), leadBonus: c.rank === 0 ? 0.1 : 0 };
+}
+
 export async function dHash(buf: Buffer): Promise<string> {
   const { data } = await sharp(buf).greyscale().resize(9, 8, { fit: "fill" }).raw().toBuffer({ resolveWithObject: true });
   let bits = "";
@@ -69,6 +174,7 @@ export async function downloadAndPrefilter(
   projectId: string,
   entryId: string,
   candidates: ImageCandidate[],
+  query?: string,
 ): Promise<ImageCandidate[]> {
   const dir = resolveInProject(projectId, path.join("images", entryId));
   await ensureDir(dir);
@@ -94,13 +200,18 @@ export async function downloadAndPrefilter(
       cand.width = width;
       cand.height = height;
 
-      if (width < config.filter.minWidth || height < config.filter.minHeight) {
+      if (isShopListing(cand)) {
+        cand.rejected = "shop listing / product image";
+        results.push(cand);
+        continue;
+      }
+      if (width * height < config.filter.minWidth * config.filter.minHeight || Math.min(width, height) < 500) {
         cand.rejected = `too small (${width}x${height})`;
         results.push(cand);
         continue;
       }
       const aspect = width / height;
-      if (aspect < 0.5 || aspect > 3.2) {
+      if (aspect < 0.6 || aspect > 3.2) {
         cand.rejected = `extreme aspect ratio (${aspect.toFixed(2)})`;
         results.push(cand);
         continue;
@@ -122,9 +233,29 @@ export async function downloadAndPrefilter(
         .toFile(resolveInProject(projectId, rel));
       cand.localPath = rel;
 
-      const resScore = Math.min(1, Math.min(width / 1920, height / 1080));
+      const text = await textCheck(buf);
+      if (text.reject) {
+        cand.rejected = text.reject;
+        results.push(cand);
+        continue;
+      }
+
+      // fills the 1920x1080 canvas in at least one direction (a tall guide sheet that fills the height is fine)
+      const resScore = Math.min(1, Math.max(width / 1920, height / 1080));
       const aspectScore = 1 - Math.min(1, Math.abs(aspect - 16 / 9) / 2);
-      cand.prefilterScore = +(0.5 * cand.authority + 0.3 * resScore + 0.2 * aspectScore).toFixed(3);
+      cand.relevance = titleRelevance(query, cand);
+      const { rankScore, leadBonus } = popularity(query, cand);
+      const genericPenalty = GENERIC_TITLE.test(cand.title ?? "") ? 0.25 : 0;
+      cand.prefilterScore = +Math.max(
+        0,
+        0.35 * cand.relevance +
+          0.35 * rankScore +
+          0.1 * resScore +
+          0.05 * aspectScore +
+          0.05 * cand.authority +
+          leadBonus -
+          genericPenalty,
+      ).toFixed(3);
       results.push(cand);
     } catch (err) {
       cand.rejected = `download failed (${(err as Error).message})`;

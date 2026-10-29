@@ -1,6 +1,6 @@
 import path from "node:path";
 import { HttpError, handleError, json, type Params } from "@/lib/api";
-import { startRenderJob } from "@/lib/pipeline";
+import { startAutoImageJob, startRenderJob } from "@/lib/pipeline";
 import { saveUploadedImage } from "@/lib/pipeline/images";
 import { requireProject, updateProject } from "@/lib/storage/projects";
 
@@ -18,13 +18,17 @@ export async function POST(req: Request, { params }: Params<{ id: string }>) {
 
     const form = await req.formData();
     const file = form.get("image");
-    if (!(file instanceof File) || file.size === 0) throw new HttpError(400, "image file required");
+    const title = typeof form.get("title") === "string" ? (form.get("title") as string).trim().slice(0, 200) : "";
+    if (!(file instanceof File) || file.size === 0) {
+      const job = startAutoImageJob(id, title);
+      return json({ project, job }, 202);
+    }
     if (!file.type.startsWith("image/")) throw new HttpError(400, "Only image files are accepted");
     if (file.size > MAX_IMAGE_BYTES) throw new HttpError(413, "Image too large");
 
     const candidate = await saveUploadedImage(id, "simple", Buffer.from(await file.arrayBuffer()), file.name);
     const updated = await updateProject(id, (p) => {
-      const entry = {
+      p.timeline = [{
         id: "simple",
         start: 0,
         end: p.mediaDuration!,
@@ -37,11 +41,11 @@ export async function POST(req: Request, { params }: Params<{ id: string }>) {
         searchQueries: [],
         chosenCandidateId: candidate.id,
         candidates: [candidate],
-      };
-      p.timeline = [entry];
+      }];
       p.renderStatus = "idle";
       p.outputVideoPath = undefined;
-      if ((!p.title || p.title === "Untitled project") && p.mediaOriginalName) {
+      if (title) p.title = title;
+      else if ((!p.title || p.title === "Untitled project") && p.mediaOriginalName) {
         p.title = path.basename(p.mediaOriginalName, path.extname(p.mediaOriginalName));
       }
     });

@@ -18,7 +18,7 @@ function num(name: string, fallback: number): number {
 
 export type TranscriptionProvider = "local" | "openai" | "whisperx" | "mock";
 export type LlmProvider = "openai" | "ollama" | "mock";
-export type SearchProvider = "wikimedia" | "openverse" | "duckduckgo" | "serpapi" | "bing" | "google" | "mock";
+export type SearchProvider = "wikipedia" | "bingweb" | "wikimedia" | "openverse" | "duckduckgo" | "serpapi" | "bing" | "google" | "mock";
 
 const hasOpenAiKey = Boolean(process.env.OPENAI_API_KEY);
 const llmProvider = env("LLM_PROVIDER", hasOpenAiKey ? "openai" : "ollama") as LlmProvider;
@@ -65,7 +65,12 @@ export const config = {
     minConfidence: num("VISION_MIN_CONFIDENCE", 0.55),
   },
   search: {
-    providers: env("IMAGE_SEARCH_PROVIDERS", "wikimedia,openverse,duckduckgo")
+    providers: env(
+      "IMAGE_SEARCH_PROVIDERS",
+      process.env.GOOGLE_CSE_API_KEY && process.env.GOOGLE_CSE_CX
+        ? "wikipedia,google,bingweb,wikimedia,openverse,duckduckgo"
+        : "wikipedia,bingweb,wikimedia,openverse,duckduckgo",
+    )
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean) as SearchProvider[],

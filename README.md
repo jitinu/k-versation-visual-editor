@@ -42,7 +42,7 @@ With nothing in `.env.local` the defaults are `TRANSCRIPTION_PROVIDER=local`, `L
 
 ### Simple mode
 
-The home page exposes Simple mode only: choose a narration file and one JPG/PNG/WebP image, then click **Create video**. The image is held for the full narration and rendered directly to an MP4 without transcription, LLM analysis, or image search. The project editor still lets you replace the image, adjust its start/end, configure rendering, and download the MP4.
+The home page exposes Simple mode only: drop one or many narration files and click **Create videos**. Each file name is used as the title (cleaned of underscores, version suffixes and numbering). For every file the app searches Wikimedia, Openverse, and DuckDuckGo for that title, picks the best-looking candidate (llava ranks the downloaded candidates when Ollama is running and `VISION_RANKING_ENABLED` is not `false`; otherwise resolution, aspect ratio and source authority decide), holds it for the full narration, and renders the MP4. Two files are processed at a time; each row shows progress and a **Download MP4** button when finished. The project editor still lets you swap the image, adjust its start/end, configure rendering, and download the MP4. The `/api/projects/:id/simple` route also accepts an optional `image` file (rendered directly, no search) and an optional `title` field that overrides the file name.
 
 ### Advanced: AI visual timeline (API)
 
@@ -54,16 +54,16 @@ The UI only exposes Simple mode, but the original AI visual-timeline pipeline re
 | --- | --- | --- |
 | Transcription | `TRANSCRIPTION_PROVIDER` | `local` (faster-whisper, default) · `openai` (`OPENAI_API_KEY`) · `whisperx` (`WHISPERX_URL`, self-hosted service returning `word_segments`) · `mock` |
 | Story analysis, title, vision ranking | `LLM_PROVIDER` | `ollama` (default, keyless) · `openai` (`OPENAI_API_KEY`, default when the key is set) · `mock` |
-| Image search | `IMAGE_SEARCH_PROVIDERS` | Comma list, all queried in parallel and pooled (authoritative sources sorted first): `wikimedia`, `openverse`, `duckduckgo` (no keys) · `google` (`GOOGLE_CSE_API_KEY` + `GOOGLE_CSE_CX`, free 100 queries/day) · `serpapi` (`SERPAPI_API_KEY`) · `bing` (`BING_IMAGE_SEARCH_KEY`) · `mock`. DuckDuckGo uses an unofficial endpoint and drops stock-photo/social domains up front. |
+| Image search | `IMAGE_SEARCH_PROVIDERS` | Comma list, all queried in parallel and pooled (authoritative sources sorted first): `wikipedia`, `bingweb` (public Bing Images page), `wikimedia`, `openverse`, `duckduckgo` (no keys) · `google` (`GOOGLE_CSE_API_KEY` + `GOOGLE_CSE_CX`, free 100 queries/day; added automatically to the default list when both are set) · `serpapi` (`SERPAPI_API_KEY`) · `bing` (`BING_IMAGE_SEARCH_KEY`) · `mock`. Bing and DuckDuckGo use unofficial endpoints and drop stock-photo domains up front. |
 
 All provider calls are retried (`SEARCH_RETRIES`) with timeouts and never log key values.
 
 ## Test the simple mode
 
 1. `npm run dev` and open http://localhost:3000.
-2. Drop an `.mp3/.wav/.m4a/.mp4/.mov` narration file on the audio drop zone.
-3. Drop one `.jpg/.jpeg/.png/.webp` image on the image drop zone.
-4. Click **Create video**, wait for the render job, then download the MP4 from the project editor.
+2. Drop one or more `.mp3/.wav/.m4a/.mp4/.mov` narration files on the drop zone (name each file after its topic, e.g. `Gyeongbokgung_Palace.mp3`).
+3. Click **Create videos** and wait; each row goes Uploading, Searching, Selecting, Rendering, Done.
+4. Click **Download MP4** on each finished row (or **Open** to swap the cover image).
 5. Return to the home page later — the project list reopens saved projects.
 
 ### Advanced: AI visual timeline (API) test
@@ -78,6 +78,8 @@ All provider calls are retried (`SEARCH_RETRIES`) with timeouts and never log ke
 Check `GET /api/config` (or the banner on the home page) to see which providers are active and whether Ollama / faster-whisper were detected.
 
 No sample audio? Generate one: `ffmpeg -f lavfi -i "sine=frequency=440:duration=60" -ac 1 sample.mp3` and paste any paragraph as the script (mock mode uses the script for content).
+
+How the cover image is picked (no key needed): the app first asks Wikipedia for the main photo of the article whose title matches the file name (for example "Joseon Royal Tombs" gets the lead photo of "Royal Tombs of the Joseon Dynasty"). It then adds Wikimedia Commons and DuckDuckGo image results and scores every candidate on how many words of the title appear in its caption, its position in the search results (search engines rank the picture people expect first), resolution and aspect ratio. Camera-roll names such as `IMG_6807.jpg` are penalised. Marketplace and print-on-demand sources (Etsy, Amazon, Redbubble and similar) are skipped, and every candidate is run through `tesseract` OCR: pictures carrying sales text ("Digital Download, 4 Sizes Included") or walls of text (lyric sheets, infographics) are rejected. Install Tesseract (`apt-get install tesseract-ocr` or `brew install tesseract`) to enable that check; without it the app still runs. Set `IMAGE_SEARCH_PROVIDERS` to change the sources; `wikipedia` is the lead-image source.
 
 ## Architecture
 

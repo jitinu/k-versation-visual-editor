@@ -209,8 +209,46 @@ async function searchDuckDuckGo(query: string, limit: number): Promise<ImageCand
         authority: authorityFor(domain),
       } satisfies ImageCandidate;
     })
-    .filter((c) => c.authority > 0.15) // drop stock-photo (watermarked) and social-media hits up front
+    .filter((c) => c.authority > 0.1) // drop stock-photo (watermarked) hits up front
     .slice(0, limit);
+}
+
+/* ---------------- Bing Images, public page (no key; what a search engine shows first for the title) ---------------- */
+
+type BingWebItem = { murl?: string; purl?: string; turl?: string; t?: string };
+
+async function searchBingWeb(query: string, limit: number): Promise<ImageCandidate[]> {
+  const params = new URLSearchParams({ q: query, first: "0", count: String(Math.max(35, limit)), adlt: "strict", qft: "+filterui:imagesize-large" });
+  const html = await fetchText(`https://www.bing.com/images/async?${params}`, { headers: { "Accept-Language": "en-US,en;q=0.9" } });
+  const out: ImageCandidate[] = [];
+  for (const m of html.matchAll(/<a[^>]+class="iusc"[^>]+m="([^"]+)"[^>]*href="([^"]*)"/g)) {
+    let item: BingWebItem;
+    try {
+      item = JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&")) as BingWebItem;
+    } catch {
+      continue;
+    }
+    if (!item.murl || !/^https?:/i.test(item.murl)) continue;
+    const href = m[2].replace(/&amp;/g, "&");
+    const width = Number(href.match(/[?&]expw=(\d+)/)?.[1] ?? 0);
+    const height = Number(href.match(/[?&]exph=(\d+)/)?.[1] ?? 0);
+    const domain = domainOf(item.purl ?? item.murl);
+    out.push({
+      id: newId("img"),
+      imageUrl: item.murl,
+      thumbnailUrl: item.turl,
+      sourcePageUrl: item.purl ?? item.murl,
+      sourceName: domain,
+      title: item.t ?? "",
+      domain,
+      width,
+      height,
+      provider: "bingweb",
+      authority: authorityFor(domain),
+    });
+  }
+  if (!out.length) throw new Error("Bing Images: no results parsed (page layout changed or blocked)");
+  return out.filter((c) => c.authority > 0.1).slice(0, limit);
 }
 
 /* ---------------- SerpAPI (Google Images) ---------------- */
@@ -346,14 +384,64 @@ export function mockCandidates(query: string, count: number): ImageCandidate[] {
   }));
 }
 
+/* ---------------- Wikipedia lead images (no key; the main photo of the matching article) ---------------- */
+
+type WikipediaResponse = {
+  query?: {
+    pages?: Record<
+      string,
+      {
+        pageid: number;
+        title: string;
+        index?: number;
+        pageimage?: string;
+        original?: { source: string; width: number; height: number };
+        thumbnail?: { source: string; width: number; height: number };
+      }
+    >;
+  };
+};
+
+async function searchWikipediaLead(query: string, limit: number): Promise<ImageCandidate[]> {
+  const params = new URLSearchParams({
+    action: "query",
+    generator: "search",
+    gsrsearch: query,
+    gsrlimit: String(Math.min(limit, 5)),
+    prop: "pageimages",
+    piprop: "original|thumbnail|name",
+    pithumbsize: "1920",
+    format: "json",
+    origin: "*",
+  });
+  const json = await fetchJson<WikipediaResponse>(`https://en.wikipedia.org/w/api.php?${params}`);
+  const pages = Object.values(json.query?.pages ?? {}).sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+  return pages
+    .filter((p) => p.original && !/\.svg$/i.test(p.original.source))
+    .map((p) => ({
+      id: newId("img"),
+      imageUrl: (p.thumbnail ?? p.original)!.source,
+      sourcePageUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(p.title.replace(/ /g, "_"))}`,
+      sourceName: "Wikipedia",
+      title: `${p.title} (${(p.pageimage ?? "").replace(/_/g, " ")})`,
+      domain: "en.wikipedia.org",
+      width: (p.thumbnail ?? p.original)!.width,
+      height: (p.thumbnail ?? p.original)!.height,
+      provider: "wikipedia",
+      authority: 1.0,
+    }) satisfies ImageCandidate);
+}
+
 /* ---------------- Orchestration ---------------- */
 
 const providerFns: Record<Exclude<SearchProvider, "mock">, (q: string, limit: number) => Promise<ImageCandidate[]>> = {
+  wikipedia: searchWikipediaLead,
   wikimedia: searchWikimedia,
   openverse: searchOpenverse,
   duckduckgo: searchDuckDuckGo,
   serpapi: searchSerpApi,
   bing: searchBing,
+  bingweb: searchBingWeb,
   google: searchGoogleCse,
 };
 
@@ -381,14 +469,16 @@ export async function searchCandidates(moment: CandidateMoment): Promise<{ candi
 
   const providers: SearchProvider[] = [...config.search.providers];
   if (!providers.includes("wikimedia") && !providers.includes("mock")) providers.unshift("wikimedia");
-  const perProvider = Math.max(4, Math.ceil(maxCandidates / providers.length));
+  const perProvider = Math.max(8, Math.ceil(maxCandidates / providers.length));
 
-  const add = (results: ImageCandidate[]) => {
-    for (const c of results) {
-      if (!c.imageUrl || seen.has(c.imageUrl)) continue;
+  // results of a fallback query rank below everything the primary query returned
+  const add = (results: ImageCandidate[], queryIndex: number) => {
+    results.forEach((c, i) => {
+      if (!c.imageUrl || seen.has(c.imageUrl)) return;
       seen.add(c.imageUrl);
+      c.rank ??= i + queryIndex * perProvider;
       out.push(c);
-    }
+    });
   };
 
   for (const [qi, q] of queries.entries()) {
@@ -397,7 +487,7 @@ export async function searchCandidates(moment: CandidateMoment): Promise<{ candi
     settled.forEach((r, i) => {
       if (r.status === "fulfilled") {
         anySuccess = true;
-        add(r.value);
+        add(r.value, qi);
       } else log.warn(`provider ${providers[i]} failed for "${q}"`, r.reason);
     });
   }
