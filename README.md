@@ -54,7 +54,7 @@ The UI only exposes Simple mode, but the original AI visual-timeline pipeline re
 | --- | --- | --- |
 | Transcription | `TRANSCRIPTION_PROVIDER` | `local` (faster-whisper, default) · `openai` (`OPENAI_API_KEY`) · `whisperx` (`WHISPERX_URL`, self-hosted service returning `word_segments`) · `mock` |
 | Story analysis, title, vision ranking | `LLM_PROVIDER` | `ollama` (default, keyless) · `openai` (`OPENAI_API_KEY`, default when the key is set) · `mock` |
-| Image search | `IMAGE_SEARCH_PROVIDERS` | Comma list, all queried in parallel and pooled (authoritative sources sorted first): `wikimedia`, `openverse`, `duckduckgo` (no keys) · `google` (`GOOGLE_CSE_API_KEY` + `GOOGLE_CSE_CX`, free 100 queries/day) · `serpapi` (`SERPAPI_API_KEY`) · `bing` (`BING_IMAGE_SEARCH_KEY`) · `mock`. DuckDuckGo uses an unofficial endpoint and drops stock-photo/social domains up front. |
+| Image search | `IMAGE_SEARCH_PROVIDERS` | Comma list, all queried in parallel and pooled (authoritative sources sorted first): `wikimedia`, `openverse`, `duckduckgo` (no keys) · `google` (`GOOGLE_CSE_API_KEY` + `GOOGLE_CSE_CX`, free 100 queries/day; added automatically to the default list when both are set) · `serpapi` (`SERPAPI_API_KEY`) · `bing` (`BING_IMAGE_SEARCH_KEY`) · `mock`. DuckDuckGo uses an unofficial endpoint and drops stock-photo/social domains up front. |
 
 All provider calls are retried (`SEARCH_RETRIES`) with timeouts and never log key values.
 

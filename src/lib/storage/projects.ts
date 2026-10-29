@@ -116,5 +116,5 @@ export async function listProjects(): Promise<ProjectSummary[]> {
       updatedAt: p.updatedAt,
     });
   }
-  return out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }

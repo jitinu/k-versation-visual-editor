@@ -10,7 +10,10 @@ export function ProjectList() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.listProjects().then(setProjects).catch((e) => setError(e.message));
+    const load = () => api.listProjects().then(setProjects).catch((e) => setError(e.message));
+    load();
+    const timer = setInterval(load, 4000);
+    return () => clearInterval(timer);
   }, []);
 
   if (error) return <p className="text-sm text-red-300">{error}</p>;

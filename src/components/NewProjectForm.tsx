@@ -37,7 +37,7 @@ export function NewProjectForm() {
       const fresh = files
         .filter((f) => !known.has(`${f.name}:${f.size}`))
         .map((f) => ({ key: `${f.name}:${f.size}:${Date.now()}`, file: f, status: "waiting" as const, uploadPct: 0 }));
-      return [...prev, ...fresh];
+      return [...fresh.reverse(), ...prev];
     });
   };
 

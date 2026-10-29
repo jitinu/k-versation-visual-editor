@@ -65,7 +65,12 @@ export const config = {
     minConfidence: num("VISION_MIN_CONFIDENCE", 0.55),
   },
   search: {
-    providers: env("IMAGE_SEARCH_PROVIDERS", "wikimedia,openverse,duckduckgo")
+    providers: env(
+      "IMAGE_SEARCH_PROVIDERS",
+      process.env.GOOGLE_CSE_API_KEY && process.env.GOOGLE_CSE_CX
+        ? "google,wikimedia,openverse,duckduckgo"
+        : "wikimedia,openverse,duckduckgo",
+    )
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean) as SearchProvider[],
