@@ -15,6 +15,8 @@ export function Dropzone({
   accept = ACCEPT_MEDIA,
   label = "Drop narration audio here, or click to browse",
   onError,
+  multiple = false,
+  onFiles,
 }: {
   file: File | null;
   onFile: (f: File | null) => void;
@@ -22,11 +24,19 @@ export function Dropzone({
   accept?: string;
   label?: string;
   onError?: (message: string) => void;
+  /** Accept many files at once; every picked file is passed to `onFiles`. */
+  multiple?: boolean;
+  onFiles?: (files: File[]) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
 
   const pick = (list: FileList | null) => {
+    if (multiple) {
+      const files = Array.from(list ?? []);
+      if (files.length) onFiles?.(files);
+      return;
+    }
     const f = list?.[0];
     if (!f) return;
     if (accept.startsWith("image/") && !f.type.startsWith("image/")) {
@@ -66,6 +76,7 @@ export function Dropzone({
         ref={inputRef}
         type="file"
         accept={accept}
+        multiple={multiple}
         className="hidden"
         data-testid="media-input"
         onChange={(e) => {
@@ -82,7 +93,7 @@ export function Dropzone({
         <>
           <div className="text-sm font-medium text-zinc-100">{label}</div>
           <div className="mt-1 text-xs text-zinc-400">
-            {accept.startsWith("image/") ? "jpg · jpeg · png · webp" : "mp3 · wav · m4a · mp4 · mov — up to 1 GB"}
+            {accept.startsWith("image/") ? "jpg · jpeg · png · webp" : `mp3 · wav · m4a · mp4 · mov, up to 1 GB${multiple ? " each" : ""}`}
           </div>
         </>
       )}
