@@ -15,6 +15,37 @@ const jsonInit = (method: string, body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
+/** One upload attempt. XHR gives progress; a retry uses fetch instead as a different network path. */
+function uploadOnce(id: string, form: FormData, onProgress?: (fraction: number) => void, useFetch = false): Promise<Project> {
+  const url = `/api/projects/${id}/upload`;
+  if (useFetch) {
+    return fetch(url, { method: "POST", body: form }).then(async (res) => {
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((body as { error?: string }).error ?? `Upload failed (${res.status})`);
+      onProgress?.(1);
+      return body as Project;
+    });
+  }
+  return new Promise<Project>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
+    xhr.onload = () => {
+      try {
+        const body = JSON.parse(xhr.responseText);
+        if (xhr.status >= 400) reject(new Error(body.error ?? `Upload failed (${xhr.status})`));
+        else resolve(body as Project);
+      } catch {
+        reject(new Error(`Upload failed (${xhr.status || "no response"})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Upload failed (network error)"));
+    xhr.onabort = () => reject(new Error("Upload cancelled"));
+    xhr.ontimeout = () => reject(new Error("Upload timed out"));
+    xhr.send(form);
+  });
+}
+
 export const api = {
   listProjects: () => request<ProjectSummary[]>("/api/projects"),
   createProject: (body: { title?: string; frequency?: VisualFrequency; script?: string }) =>
@@ -22,23 +53,26 @@ export const api = {
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
   patchProject: (id: string, body: Record<string, unknown>) =>
     request<Project>(`/api/projects/${id}`, jsonInit("PATCH", body)),
-  upload: (id: string, form: FormData, onProgress?: (fraction: number) => void) =>
-    new Promise<Project>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", `/api/projects/${id}/upload`);
-      xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
-      xhr.onload = () => {
-        try {
-          const body = JSON.parse(xhr.responseText);
-          if (xhr.status >= 400) reject(new Error(body.error ?? xhr.statusText));
-          else resolve(body as Project);
-        } catch (err) {
-          reject(err);
-        }
-      };
-      xhr.onerror = () => reject(new Error("Upload failed"));
-      xhr.send(form);
-    }),
+  upload: async (id: string, form: FormData, onProgress?: (fraction: number) => void) => {
+    const file = form.get("media");
+    if (file instanceof File) {
+      try {
+        await file.slice(0, Math.min(file.size, 64 * 1024)).arrayBuffer();
+      } catch {
+        throw new Error("Can't read this file from disk. If it's in iCloud Drive, download it fully first, then try again.");
+      }
+    }
+    let lastError: Error = new Error("Upload failed");
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await uploadOnce(id, form, onProgress, attempt > 0);
+      } catch (err) {
+        lastError = err as Error;
+        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+      }
+    }
+    throw lastError;
+  },
   generate: (id: string, body: { frequency?: VisualFrequency; skipTranscription?: boolean }) =>
     request<{ job: JobState }>(`/api/projects/${id}/generate`, jsonInit("POST", body)),
   regenerate: (
